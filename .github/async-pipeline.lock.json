@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "generator": "@async/pipeline",
+  "config": "pipeline.ts",
+  "workflow": ".github/workflows/async-pipeline.yml",
+  "hash": "sha256:80bbe0f3146b2e6341e063da26d15ab9fb9bac81668d3d775c5da0bf0b410078",
+  "generatedAt": "2026-06-12T23:34:35.533Z",
+  "triggers": {
+    "pull_request": {},
+    "push": {
+      "branches": [
+        "main"
+      ]
+    },
+    "workflow_dispatch": {}
+  },
+  "jobs": [
+    {
+      "id": "publish-gists",
+      "target": [
+        "publish-gists"
+      ],
+      "trigger": [
+        "main",
+        "manual"
+      ],
+      "env": {
+        "GIST_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "GIST_TOKEN"
+        }
+      },
+      "if": "(github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')"
+    },
+    {
+      "id": "verify",
+      "target": [
+        "test",
+        "check-github"
+      ],
+      "trigger": [
+        "pr",
+        "main",
+        "manual"
+      ],
+      "env": {},
+      "if": "(github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')"
+    }
+  ],
+  "packageManager": "pnpm",
+  "nodeVersion": "24",
+  "taskCache": true
+}

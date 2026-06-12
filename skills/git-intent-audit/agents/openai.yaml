@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Intent Audit"
+  short_description: "Audit Git changes by intent"
+  default_prompt: "Use $git-intent-audit to audit this repo's dirty changes or commit history by change intent."

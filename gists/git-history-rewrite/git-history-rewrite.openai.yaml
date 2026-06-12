@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git History Rewrite"
+  short_description: "Replay Git history by intent"
+  default_prompt: "Use $git-history-rewrite to audit and safely rewrite this branch history by change intent."

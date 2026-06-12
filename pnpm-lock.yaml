@@ -1,0 +1,24 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@async/pipeline':
+        specifier: 0.2.0
+        version: 0.2.0
+
+packages:
+
+  '@async/pipeline@0.2.0':
+    resolution: {integrity: sha512-niBWKPXktqyF6KwwJTXEfDBVbwnWXtnS22oG7md9qbKGaWJSOD8igM+wM2VePrmho0d1GdA873GKNXW8IINyWw==}
+    engines: {node: '>=24'}
+    hasBin: true
+
+snapshots:
+
+  '@async/pipeline@0.2.0': {}

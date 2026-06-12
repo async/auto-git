@@ -1,0 +1,22 @@
+{
+  "skills": [
+    {
+      "name": "auto-git",
+      "gistId": "2d858aca3211451a0cad7282971beb90",
+      "description": "Auto Git Codex skill",
+      "readme": "docs/gists/auto-git.md"
+    },
+    {
+      "name": "git-intent-audit",
+      "gistId": "b65dd814cde5d9c380b26ecdeba883d4",
+      "description": "Git Intent Audit Codex skill",
+      "readme": "docs/gists/git-intent-audit.md"
+    },
+    {
+      "name": "git-history-rewrite",
+      "gistId": "7acdfd0d8d8d3948cbc7003651b68db6",
+      "description": "Git History Rewrite Codex skill",
+      "readme": "docs/gists/git-history-rewrite.md"
+    }
+  ]
+}

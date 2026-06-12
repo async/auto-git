@@ -1,0 +1,30 @@
+{
+  "name": "@async/auto-git",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/async/auto-git.git"
+  },
+  "scripts": {
+    "async-pipeline": "node scripts/run-async-pipeline.js",
+    "gists:check": "node scripts/package-gists.js --check",
+    "gists:package": "node scripts/package-gists.js --write",
+    "gists:publish": "node scripts/publish-gists.js",
+    "pipeline:github:check": "node scripts/run-async-pipeline.js github check",
+    "pipeline:github:generate": "node scripts/run-async-pipeline.js github generate",
+    "pipeline:verify": "node scripts/run-async-pipeline.js run verify",
+    "skills:validate": "node scripts/validate-skills.js",
+    "test": "node --test tests/*.test.js",
+    "verify": "node scripts/validate-skills.js && node scripts/package-gists.js --check && node --test tests/*.test.js && node scripts/run-async-pipeline.js github check"
+  },
+  "devDependencies": {
+    "@async/pipeline": "0.2.0"
+  }
+}
