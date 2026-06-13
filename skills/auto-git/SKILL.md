@@ -13,7 +13,28 @@ The default is careful local intent commits. Push, merge, branch deletion, and w
 
 ## First Move
 
-1. Inspect the repo before staging:
+1. Start with the bundled snapshot helper when available. It emits topology,
+   dirty inventory, lock state, Git index write capability, package-manager
+   hints, and an execution plan in one JSON payload:
+
+   ```bash
+   scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state
+   ```
+
+   The helper writes advisory metadata under `~/.async/auto-git/v1/` only when
+   `--write-state` is passed. State writes must fail soft as
+   `stateWrite: { ok: false, reason }`; they must not fail the whole snapshot.
+   Auto Git state must not store raw diffs, file contents, environment values,
+   tokens, npmrc content, or full command output.
+
+2. Use the snapshot's `executionPlan` before expensive verification:
+   - if `git.indexWrite.ok` is false, expect `git add` / `git commit` / `git push`
+     to need the explicit escalated `git -C <repo> ...` path in restricted sandboxes
+   - if `executionPlan.verification.executionProfile` is `loopback-capable`,
+     start with that profile instead of first running a doomed sandboxed gate
+   - scan every reported `locks.asyncRunLocks[]` path before verification
+
+3. If the helper is unavailable or the snapshot itself fails, inspect the repo before staging:
    - `git rev-parse --show-toplevel`
    - `git status --short --branch`
    - `git worktree list --porcelain`
@@ -21,14 +42,14 @@ The default is careful local intent commits. Push, merge, branch deletion, and w
    - `git remote -v`
    - `git rev-parse --abbrev-ref @{u}` when an upstream exists
 
-2. Identify:
+4. Identify:
    - repo root and current worktree path
    - current branch or detached state
    - upstream branch and default/main branch
    - whether this is main, a feature branch, or a linked worktree
    - dirty tracked, staged, untracked, renamed, deleted, ignored, and generated files
 
-3. Choose the lifecycle:
+5. Choose the lifecycle:
 
 | Mode | Use when | Actions |
 | --- | --- | --- |
@@ -54,6 +75,40 @@ If the worktree is large or unclear, optionally use `git-intent-audit` before co
 - If hunk staging would be risky, stop and show the proposed split instead of inventing a clean history.
 - Ask before pushing, merging, deleting branches, deleting worktrees, rewriting history, or combining unrelated intent groups unless that action was explicitly requested.
 - Do not perform deep history rewrites in Auto Git. Route existing-commit cleanup to `git-history-rewrite`.
+- Treat `~/.async/auto-git/` as advisory cache only. Never skip staged-diff inspection before committing because of cached state.
+- Never persist raw diffs, file contents, environment values, tokens, npmrc content, or full command output in Auto Git state.
+
+## Environment Controller
+
+Auto Git may use bundled helpers as small deterministic controller hooks. They
+are not a replacement for commit-by-intent judgment.
+
+- `scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state`
+  - snapshots topology, dirty fingerprints, Git index write capability, root
+    and `examples/**/.async/run.lock` state, package-manager hints, and the
+    recommended execution plan
+  - classifies inaccessible PIDs with optional `ps` metadata; an unrelated
+    inaccessible PID is a `stale-candidate`, not an auto-delete instruction
+  - emits `stateWrite.ok=false` when advisory state is unwritable
+- `scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto --quiet-seconds 60 -- <command> [args...]`
+  - runs verification with the selected execution profile and whitelisted
+    Auto Git-generated environment overrides
+  - records the command PID/process group so only processes started by this run
+    can be cleaned up precisely
+  - emits a compact receipt with duration, exit code, failure class, and quiet
+    process-tree diagnostics
+
+## Global Async State
+
+Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, and recovery hints.
+
+Reuse cached intent plans only when `HEAD`, upstream ref, staged state, and dirty fingerprint match exactly. Reuse cached verification results only when the entry has `exitCode: 0` for the same `HEAD + dirtyFingerprint + command + executionProfile`. Failed, interrupted, or hung commands are diagnostics, never passing evidence.
+
+When a repo has `.async/run.lock`, `examples/**/.async/run.lock`, or `.async/runs/`, treat Async Pipeline awareness as optional extra context. Parse lock files as `{ pid, startedAt }`, use `kill -0 <pid>` plus `ps` metadata when useful, and remove only confirmed stale locks with approval. If `.async/` is absent, proceed as normal Git automation.
+
+Package-manager sandbox hint: start with the repo-native plain command unless the snapshot execution plan says otherwise. If npm/pnpm fails because npm cannot write HOME cache/log/config paths in the sandbox, retry the same command with `NO_UPDATE_NOTIFIER=1 NPM_CONFIG_CACHE=/private/tmp/<repo>-npm-cache NPM_CONFIG_LOGS_DIR=/private/tmp/<repo>-npm-logs`. Preserve pnpm `minimumReleaseAge` and similar supply-chain settings.
+
+Failure receipts should classify environment failures separately from code failures. Treat `listen EPERM 127.0.0.1`, npm cache/log write denial, Git index write denial, stale or malformed run locks, and hung quiet gates as environment diagnostics unless test output clearly shows an assertion or code failure.
 
 ## Intent Types
 
@@ -135,6 +190,9 @@ For each intent group:
 1. Stage only the files or hunks for that group.
 2. Inspect `git diff --cached --stat` and targeted `git diff --cached -- <path>`.
 3. Run the narrow relevant verification when practical.
+   - Prefer `auto-git-gate.mjs` for expensive or failure-prone gates so the receipt records profile, PID/process group, duration, and failure class.
+   - If the snapshot helper reports a matching successful verification cache entry, you may use it only as a signal to skip duplicate exploratory checks; still run the repo's required final gate before push/land when the repo requires it.
+   - After verification, record safe metadata with `auto-git-snapshot.mjs --write-state --record-verification <name> --exit-code <n> --execution-profile <profile>` when useful.
 4. Commit with an intent-first message.
 5. Confirm the remaining dirty status before the next group.
 
@@ -161,4 +219,5 @@ End with:
 - files intentionally left uncommitted
 - push/merge result when applicable
 - verification run and result
+- cleanup checklist: worktree status, `HEAD` vs upstream, remaining repo run locks, and Auto Git-started verification processes
 - remaining risks or user decisions needed

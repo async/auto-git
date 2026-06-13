@@ -7,6 +7,7 @@ Auto Git owns staging and committing. For heavier read-only analysis, use `git-i
 ## Classification Workflow
 
 1. Build the change inventory:
+   - `scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state` when available
    - `git status --short`
    - `git diff --name-status`
    - `git diff --stat`
@@ -14,6 +15,7 @@ Auto Git owns staging and committing. For heavier read-only analysis, use `git-i
    - `git ls-files --others --exclude-standard`
 
 2. Read enough code to classify intent:
+   - reuse a cached high-confidence intent plan only when the snapshot's `HEAD`, upstream, staged fingerprint, and dirty fingerprint match exactly
    - targeted `git diff -- <path>`
    - nearby tests and fixtures
    - package manifests and lockfile deltas
@@ -45,6 +47,10 @@ Auto Git owns staging and committing. For heavier read-only analysis, use `git-i
    - unrelated user notes or experiments
    - accidental debug output
    - files with credential-looking content
+
+Cached plans are advisory only. They can speed up repeated inspection after an
+interrupted run, but Auto Git still owns the current staged diff inspection
+before every commit.
 
 ## Optional Companion Routing
 
@@ -204,6 +210,11 @@ Run the smallest meaningful check for each commit group when practical:
 - docs/example command when committing runnable docs
 
 If verification is too expensive per commit, run it before the final push/merge and say so in the receipt.
+
+For expensive or environment-sensitive gates, prefer
+`scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto -- <command> [args...]`
+so the receipt separates environment failures from code failures and records
+only the process group started by Auto Git.
 
 ## Low Confidence Plan
 

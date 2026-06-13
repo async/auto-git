@@ -38,6 +38,16 @@ export async function expectedGistFiles(skill) {
     }
   }
 
+  const scriptsDir = path.join(skillDir, "scripts");
+  if (existsSync(scriptsDir)) {
+    const scripts = (await readdir(scriptsDir))
+      .filter((entry) => entry.endsWith(".mjs") || entry.endsWith(".js"))
+      .sort();
+    for (const script of scripts) {
+      files.set(`${skill.name}.script-${script}`, await readFile(path.join(scriptsDir, script), "utf8"));
+    }
+  }
+
   return files;
 }
 

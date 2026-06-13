@@ -19,6 +19,9 @@ auto-git/
   references/
     commit-by-intent.md
     git-topology-lifecycles.md
+  scripts/
+    auto-git-snapshot.mjs
+    auto-git-gate.mjs
 ```
 
 Gist file mapping:
@@ -29,16 +32,20 @@ Gist file mapping:
 | `auto-git.openai.yaml` | `agents/openai.yaml` |
 | `auto-git.reference-commit-by-intent.md` | `references/commit-by-intent.md` |
 | `auto-git.reference-git-topology-lifecycles.md` | `references/git-topology-lifecycles.md` |
+| `auto-git.script-auto-git-snapshot.mjs` | `scripts/auto-git-snapshot.mjs` |
+| `auto-git.script-auto-git-gate.mjs` | `scripts/auto-git-gate.mjs` |
 
 ## What It Does
 
 - Detects repo root, branch, upstream, default branch, dirty state, and worktree topology before staging.
+- Uses a compact snapshot helper to detect Git index write capability, run locks, package-manager hints, and the recommended verification profile before expensive commands.
 - Commits by change intent instead of making one vague bulk commit.
 - Reads the code and diffs when there are many unstaged changes, then builds the best commit split.
 - Optionally routes large or unclear worktrees to `git-intent-audit` before committing.
 - Routes existing commit history cleanup to `git-history-rewrite` instead of performing deep history surgery inside Auto Git.
 - Uses hunk-level staging when one file contains separable changes.
 - Keeps unrelated user edits out of commits unless the user explicitly includes them.
+- Runs expensive gates through a small helper when useful so receipts capture PID/process group, duration, execution profile, quiet diagnostics, and environment-vs-code failure classification.
 - Runs the requested Git lifecycle without treating `git add . && git commit` as acceptable automation.
 
 ## Modes
@@ -142,6 +149,29 @@ Auto Git should ask before:
 - committing files with credential-looking content
 
 Auto Git should not commit generated GoalBuddy board bundles such as `.goalbuddy-board/` unless explicitly requested.
+
+## Helper Scripts
+
+Run the snapshot helper before staging or verification when available:
+
+```bash
+scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state
+```
+
+The snapshot output is compact JSON. Advisory state writes fail soft with
+`stateWrite.ok=false`, so an unwritable `~/.async/auto-git` directory does not
+block the first move.
+
+For long or environment-sensitive gates, use:
+
+```bash
+scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto --quiet-seconds 60 -- pnpm verify
+```
+
+The gate helper records only safe metadata: command argv, profile, generated
+environment overrides, PID/process group, duration, exit code, dirty
+fingerprint, and failure class. It must not store raw diffs, full command
+output, secrets, npmrc content, or environment dumps.
 
 ## Install Notes
 

@@ -4,7 +4,16 @@ Use this reference for worktree detection, branch handling, push/merge flows, an
 
 ## Topology Detection
 
-Run these before staging:
+Prefer the bundled snapshot helper before staging:
+
+```bash
+scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state
+```
+
+It batches topology, ahead/behind, dirty inventory, staged state, untracked
+files, Git index lock/write state, root and `examples/**/.async/run.lock`
+state, package-manager hints, and a recommended execution plan. If it is
+unavailable or the snapshot itself fails, run these commands manually:
 
 ```bash
 git rev-parse --show-toplevel
@@ -25,6 +34,16 @@ Classify the checkout:
 - `worktree`: current path appears as a linked worktree path.
 - `detached`: no branch name; do not commit until the user confirms or a branch is created.
 - `dirty main`: main has local edits; checkpoint locally unless the user clearly requested push on main.
+
+## Lock, Profile, and Gate Handling
+
+- If `git.indexWrite.ok` is false, expect Git index writes to require the explicit escalated `git -C <repo> add|commit|push` path in restricted sandboxes. Do not treat that as a code failure.
+- If `.git/index.lock` is present, classify it before staging. Remove it only when stale ownership is clear and the user approved lock removal.
+- If any `locks.asyncRunLocks[]` entry is present, parse `{ pid, startedAt }` and check `kill -0 <pid>` plus `ps` metadata when useful. Treat missing PIDs as malformed, ESRCH as stale, and inaccessible unrelated PIDs as stale candidates. Remove only confirmed stale locks with approval.
+- If the snapshot recommends `executionProfile: loopback-capable`, start with that profile for the expensive gate instead of first running a doomed restricted command.
+- Prefer `scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto --quiet-seconds 60 -- <command> [args...]` for long or environment-sensitive verification. It records the PID/process group, duration, failure class, and quiet process-tree diagnostics.
+- If npm/pnpm verification fails on HOME cache/log/config writes in a sandbox, retry the same repo-native command with `NO_UPDATE_NOTIFIER=1`, `NPM_CONFIG_CACHE=/private/tmp/<repo>-npm-cache`, and `NPM_CONFIG_LOGS_DIR=/private/tmp/<repo>-npm-logs`.
+- If the repo is `async-pipeline`, full `pnpm release:check` should use the loopback-capable profile plus tmp npm cache/log dirs because some tests bind `127.0.0.1` and the release check can spawn npm pack.
 
 ## Mode Selection
 
@@ -88,5 +107,14 @@ Only clean up what Auto Git created or what the user explicitly included:
 - stale local branch after a confirmed merge
 - temporary worktree after confirmed integration
 - empty staging state created during the current run
+- verification process groups recorded by `auto-git-gate.mjs` for this run
+- run locks that are confirmed stale and approved for removal
 
 Never remove untracked user files, caches, ignored directories, or another tool's generated state unless the user asks for that exact cleanup.
+
+Final cleanup receipts should always report:
+
+- worktree status
+- `HEAD` versus upstream
+- remaining root and nested `.async/run.lock` files
+- Auto Git-started verification processes that remain alive
