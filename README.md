@@ -21,6 +21,31 @@ tests/           Node test suite for package invariants
 pipeline.ts      @async/pipeline workflow definition
 ```
 
+The commit intent rules live in `skills/auto-git/references/commit-by-intent.md`.
+Use the most specific intent prefix that fits:
+
+```text
+feat: new capability
+fix: broken behavior corrected
+security: vulnerability or hardening change
+perf: performance improvement
+refactor: internal change, same behavior
+test: test-only change
+docs: documentation-only change
+style: formatting-only change
+deps: dependency-only update
+build: build/package system
+ci: CI workflow change
+migrate: database/schema/data migration
+release: version/changelog/release metadata
+revert: undo a previous commit
+chore: maintenance that does not fit above
+```
+
+Use `chore: ` last. If `deps: `, `build: `, `ci: `, `release: `,
+`migrate: `, `security: `, `style: `, `test: `, `docs: `, or
+`refactor: ` fits, use that more specific intent instead.
+
 Do not edit `gists/**` by hand. Update `skills/**` or `docs/gists/**`, then run:
 
 ```sh
