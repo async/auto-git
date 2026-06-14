@@ -103,7 +103,12 @@ the other lifecycles:
 4. Sync/push, create or update PR handoffs, land/merge, and release only when
    the request clearly authorizes those steps.
 5. Run `auto-git-release-preflight.mjs` before creating or pushing release tags.
-6. Finish with `auto-git-finish.mjs` so the ledger and receipt are clean.
+6. Push the completed branch with upstream tracking and switch back to main
+   before calling the work done, unless the user explicitly asks to stay on the
+   branch.
+7. Finish with `auto-git-finish.mjs` so PR handoff or pushed merge evidence,
+   branch/base push state, return-to-main state, and the ledger receipt are all
+   clean.
 
 Everything mode still stops for secrets, unclear commit boundaries, destructive
 cleanup, force pushes, failed verification, missing release metadata, or remote
@@ -286,6 +291,11 @@ scripts/auto-git-ledger.mjs list --cwd "$PWD"
 scripts/auto-git-finish.mjs --cwd "$PWD" --run-id "<id>" --complete
 scripts/auto-git-release-preflight.mjs --cwd "$PWD" --require-verification
 ```
+
+`auto-git-finish.mjs` blocks coordinated/everything completion until the branch
+is pushed upstream or merged into a pushed base branch, the checkout is switched
+back to main/default, a PR handoff or merge is recorded, and the ledger update
+succeeds.
 
 For long or environment-sensitive gates, use:
 

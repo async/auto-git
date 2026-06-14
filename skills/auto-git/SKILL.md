@@ -136,8 +136,12 @@ Everything mode means Auto Git should:
 8. For releases, create a `release(...)` commit containing version,
    changelog/release notes, and bump-caused lockfile/package metadata, then run
    `auto-git-release-preflight.mjs` before any tag or release automation.
-9. Finish with `auto-git-finish.mjs` and complete the ledger run only when the
-   receipt is clean.
+9. For any non-main branch, push the branch with upstream tracking and switch
+   back to main/default before calling the work done, unless the user explicitly
+   asks to stay on the branch.
+10. Finish with `auto-git-finish.mjs`; it must check PR handoff or pushed merge
+   evidence, branch/base push state, return-to-main state, and ledger update
+   state before completing the ledger run.
 
 Everything mode still stops for safety gates: secrets, unclear intent
 boundaries, destructive cleanup, force pushes, remote release tag movement,
@@ -211,6 +215,10 @@ are not a replacement for commit-by-intent judgment.
 - `scripts/auto-git-finish.mjs --cwd "$PWD" --run-id "<id>" [--complete]`
   - checks dirty state, HEAD/upstream, active run locks, PR readiness, and
     verification against current HEAD
+  - blocks completion for coordinated/everything branch work until the branch
+    is pushed upstream and the checkout is switched back to main/default
+  - checks whether there is a recorded PR handoff or pushed merge evidence, and
+    whether the ledger update actually completed
   - records PR metadata when asked and completes the run only when safe
 - `scripts/auto-git-release-preflight.mjs --cwd "$PWD" [--require-verification]`
   - checks package version, changelog/release notes, dirty state, existing

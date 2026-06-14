@@ -62,6 +62,13 @@ land/merge, and release. That mode still stops for safety gates such as
 secrets, destructive cleanup, failed verification, force pushes, remote tag
 movement, and missing release metadata.
 
+Done means cleaned up, not just committed: coordinated/everything branch work
+should push the completed branch with upstream tracking and switch back to main
+before the final receipt unless the user explicitly asks to stay on the branch.
+The finish receipt should also check PR handoff or pushed merge evidence and
+confirm the ledger update, so completed work is either handed off, integrated,
+or explicitly blocked.
+
 Do not edit `gists/**` by hand. Update `skills/**` or `docs/gists/**`, then run:
 
 ```sh

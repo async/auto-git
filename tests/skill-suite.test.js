@@ -76,6 +76,8 @@ test("auto-git docs describe everything mode and controller helpers", async () =
     assert.match(content, /auto-git-start\.mjs/);
     assert.match(content, /auto-git-finish\.mjs/);
     assert.match(content, /auto-git-release-preflight\.mjs/);
+    assert.match(content, /push[\s\S]+branch[\s\S]+switch\s+back to main|switch\s+back to main[\s\S]+push[\s\S]+branch/i);
+    assert.match(content, /PR[\s\S]+merge[\s\S]+ledger|ledger[\s\S]+PR[\s\S]+merge/i);
   }
 });
 
@@ -371,6 +373,126 @@ test("auto-git controller scripts start, list, and block unsafe finish", async (
     assert.ok(payload.blockers.includes("worktree has uncommitted changes"));
   } finally {
     await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git finish requires pushed branch and return to main for everything runs", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-main-");
+  const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-remote-"));
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-state-"));
+  try {
+    git(remote, ["init", "--bare"]);
+    git(repo, ["remote", "add", "origin", remote]);
+    git(repo, ["push", "-u", "origin", "main"]);
+    git(repo, ["switch", "-c", "codex/finish-smart"]);
+    await writeProjectFile(repo, "src/feature.js", "export const feature = true;\n");
+    commit(repo, "feat(auto-git): prove finish branch handoff", "Codex Tester <codex@example.com>");
+    git(repo, ["push", "-u", "origin", "codex/finish-smart"]);
+
+    snapshot(repo, ["--write-state", "--claim-run", "auto-git do everything", "--run-id", "finish-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    snapshot(
+      repo,
+      ["--write-state", "--record-verification", "pnpm verify", "--exit-code", "0", "--run-id", "finish-run"],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+
+    let result = script("auto-git-finish.mjs", repo, ["--run-id", "finish-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 1);
+    let payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "blocked");
+    assert.equal(payload.branchCompletion.pushed, true);
+    assert.equal(payload.branchCompletion.returnedToBase, false);
+    assert.equal(payload.handoffCheck.satisfied, false);
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("switch back to main")));
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("no recorded PR handoff")));
+
+    git(repo, ["switch", "main"]);
+    result = script(
+      "auto-git-finish.mjs",
+      repo,
+      [
+        "--run-id",
+        "finish-run",
+        "--record-pr",
+        "https://github.com/async/auto-git/pull/123",
+        "--pr-number",
+        "123",
+        "--complete",
+        "--json"
+      ],
+      {
+        AUTO_GIT_STATE_HOME: stateHome
+      }
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "completed");
+    assert.equal(payload.branchCompletion.pushed, true);
+    assert.equal(payload.branchCompletion.returnedToBase, true);
+    assert.equal(payload.handoffCheck.satisfied, true);
+    assert.equal(payload.handoffCheck.pr.url, "https://github.com/async/auto-git/pull/123");
+    assert.equal(payload.ledger.status, "completed");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git finish accepts pushed merge evidence without PR handoff", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-merge-");
+  const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-merge-remote-"));
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-merge-state-"));
+  try {
+    git(remote, ["init", "--bare"]);
+    git(repo, ["remote", "add", "origin", remote]);
+    git(repo, ["push", "-u", "origin", "main"]);
+    git(repo, ["switch", "-c", "codex/finish-merged"]);
+    await writeProjectFile(repo, "src/merged.js", "export const merged = true;\n");
+    commit(repo, "feat(auto-git): prove finish merge evidence", "Codex Tester <codex@example.com>");
+    git(repo, ["push", "-u", "origin", "codex/finish-merged"]);
+
+    snapshot(repo, ["--write-state", "--claim-run", "auto-git do everything", "--run-id", "merge-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    snapshot(repo, ["--write-state", "--record-verification", "pnpm verify", "--exit-code", "0", "--run-id", "merge-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+
+    git(repo, ["switch", "main"]);
+    git(repo, ["merge", "--ff-only", "codex/finish-merged"]);
+    git(repo, ["branch", "-d", "codex/finish-merged"]);
+
+    let result = script("auto-git-finish.mjs", repo, ["--run-id", "merge-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 1);
+    let payload = JSON.parse(result.stdout);
+    assert.equal(payload.handoffCheck.satisfied, true);
+    assert.equal(payload.handoffCheck.merge.mergedIntoBase, true);
+    assert.equal(payload.branchCompletion.exists, false);
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("base branch main has 1 unpushed commit")));
+
+    git(repo, ["push", "origin", "main"]);
+    result = script("auto-git-finish.mjs", repo, ["--run-id", "merge-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "completed");
+    assert.equal(payload.handoffCheck.satisfied, true);
+    assert.equal(payload.handoffCheck.merge.mergedIntoBase, true);
+    assert.equal(payload.handoffCheck.merge.basePushed, true);
+    assert.equal(payload.branchCompletion.returnedToBase, true);
+    assert.equal(payload.ledger.status, "completed");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
     await rm(stateHome, { recursive: true, force: true });
   }
 });

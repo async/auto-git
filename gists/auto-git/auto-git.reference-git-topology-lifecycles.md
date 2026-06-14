@@ -170,7 +170,10 @@ Use PR handoff when the user has merge or branch intent.
    behavior or an established mode allows it.
 5. Record the PR with `--record-pr` so future Auto Git runs can discover it.
 6. Report whether the branch is `draft-pr`, `ready-pr`, or `merge-candidate`.
-7. Never merge merely because a PR is ready. Merge only through the explicit
+7. After the branch is pushed and handoff state is recorded, switch the active
+   checkout back to main/default before the final receipt unless the user asked
+   to remain on the branch.
+8. Never merge merely because a PR is ready. Merge only through the explicit
    `land` lifecycle or a later merge request.
 
 PR readiness states:
@@ -249,7 +252,15 @@ Everything mode is an execution envelope over the other lifecycles:
 6. Use `auto-git-ledger.mjs` when handoff or stale state is unclear.
 7. Use `auto-git-release-preflight.mjs` before creating or pushing a release
    tag.
-8. Use `auto-git-finish.mjs` for the final receipt and ledger completion.
+8. Push every completed feature/release branch with upstream tracking and switch
+   back to main/default before final completion unless the user explicitly asks
+   to stay on the branch.
+9. Use `auto-git-finish.mjs` for the final receipt and ledger completion; it
+   should block coordinated/everything completion if the branch is unpushed, a
+   merged base branch is unpushed, or the checkout is still on the branch.
+10. The finish receipt must also check PR handoff or pushed merge evidence and
+    confirm the ledger update state, so "done" means pushed, handed off or
+    integrated, recorded, and back on main/default.
 
 Everything mode does not bypass safety. Stop for secrets, destructive cleanup,
 ambiguous commit boundaries, unresolved conflicts, failed verification, force
