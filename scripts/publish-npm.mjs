@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 const REGISTRY = "https://registry.npmjs.org/";
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
@@ -18,7 +18,10 @@ function npm(args, options = {}) {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: options.inherit ? "inherit" : ["ignore", "pipe", "pipe"],
-    env: process.env
+    env: {
+      ...process.env,
+      NPM_CONFIG_CACHE: process.env.NPM_CONFIG_CACHE ?? join(repoRoot, ".async", "npm-cache")
+    }
   });
 }
 

@@ -65,7 +65,7 @@ export default definePipeline({
       dependsOn: ["test", "check-github"],
       inputs: ["skills", "tooling", "generated"],
       cache: false,
-      run: sh`npm pack --dry-run`
+      run: sh`npm --cache ./.async/npm-cache pack --dry-run`
     }),
     "check-github": task({
       inputs: ["tooling", "generated"],

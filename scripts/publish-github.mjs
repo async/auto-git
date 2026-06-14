@@ -47,6 +47,7 @@ function npm(args, options = {}) {
     stdio: options.inherit ? "inherit" : ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
+      NPM_CONFIG_CACHE: process.env.NPM_CONFIG_CACHE ?? join(repoRoot, ".async", "npm-cache"),
       NPM_CONFIG_USERCONFIG: npmConfig
     }
   });

@@ -19,7 +19,11 @@ function run(command, commandArgs, options = {}) {
   return spawnSync(command, commandArgs, {
     encoding: "utf8",
     stdio: options.inherit ? "inherit" : ["ignore", "pipe", "pipe"],
-    env: options.env ?? process.env
+    env: {
+      ...process.env,
+      NPM_CONFIG_CACHE: process.env.NPM_CONFIG_CACHE ?? join(process.cwd(), ".async", "npm-cache"),
+      ...(options.env ?? {})
+    }
   });
 }
 
