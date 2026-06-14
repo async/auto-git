@@ -297,6 +297,9 @@ is pushed upstream or merged into a pushed base branch, the checkout is switched
 back to main/default, a PR handoff or merge is recorded, and the ledger update
 succeeds.
 
+Completion from main/default still preserves the completed branch/head in the
+ledger so later chats can find the exact handoff.
+
 For long or environment-sensitive gates, use:
 
 ```bash

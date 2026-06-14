@@ -872,6 +872,25 @@ function currentRunBasis(snapshot, options, nowIso) {
   };
 }
 
+function completionRunBasis(snapshot, existing, options, updatedAt) {
+  const current = currentRunBasis(snapshot, options, updatedAt);
+  const completingFromBase =
+    existing?.branch &&
+    existing.branch !== current.branch &&
+    existing.branch !== (existing.baseBranch ?? current.baseBranch);
+  if (!completingFromBase) return current;
+
+  return {
+    ...current,
+    branch: existing.branch,
+    baseBranch: existing.baseBranch ?? current.baseBranch,
+    head: existing.head ?? current.head,
+    dirtyFingerprint: existing.dirtyFingerprint ?? current.dirtyFingerprint,
+    stagedFingerprint: existing.stagedFingerprint ?? current.stagedFingerprint,
+    commits: existing.commits ?? current.commits
+  };
+}
+
 function mutateLedger(snapshot, ledger, options, updatedAt) {
   let runs = [...ledger.runs];
   let changed = false;
@@ -917,7 +936,7 @@ function mutateLedger(snapshot, ledger, options, updatedAt) {
       ...existing,
       status: "completed",
       completedAt: updatedAt,
-      ...currentRunBasis(snapshot, options, updatedAt)
+      ...completionRunBasis(snapshot, existing, options, updatedAt)
     });
     changed = true;
   }

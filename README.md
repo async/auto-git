@@ -68,6 +68,8 @@ before the final receipt unless the user explicitly asks to stay on the branch.
 The finish receipt should also check PR handoff or pushed merge evidence and
 confirm the ledger update, so completed work is either handed off, integrated,
 or explicitly blocked.
+When finish runs after switching back to main, the ledger should still preserve
+the completed branch and head for later handoff.
 
 Do not edit `gists/**` by hand. Update `skills/**` or `docs/gists/**`, then run:
 

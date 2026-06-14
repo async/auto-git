@@ -219,6 +219,8 @@ are not a replacement for commit-by-intent judgment.
     is pushed upstream and the checkout is switched back to main/default
   - checks whether there is a recorded PR handoff or pushed merge evidence, and
     whether the ledger update actually completed
+  - preserves the completed branch/head in the ledger even when completion is
+    run from main/default after cleanup
   - records PR metadata when asked and completes the run only when safe
 - `scripts/auto-git-release-preflight.mjs --cwd "$PWD" [--require-verification]`
   - checks package version, changelog/release notes, dirty state, existing

@@ -261,6 +261,8 @@ Everything mode is an execution envelope over the other lifecycles:
 10. The finish receipt must also check PR handoff or pushed merge evidence and
     confirm the ledger update state, so "done" means pushed, handed off or
     integrated, recorded, and back on main/default.
+11. Completing from main/default must preserve the completed branch and head in
+    the ledger, not overwrite the handoff with the base checkout.
 
 Everything mode does not bypass safety. Stop for secrets, destructive cleanup,
 ambiguous commit boundaries, unresolved conflicts, failed verification, force

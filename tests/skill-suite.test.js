@@ -388,6 +388,7 @@ test("auto-git finish requires pushed branch and return to main for everything r
     git(repo, ["switch", "-c", "codex/finish-smart"]);
     await writeProjectFile(repo, "src/feature.js", "export const feature = true;\n");
     commit(repo, "feat(auto-git): prove finish branch handoff", "Codex Tester <codex@example.com>");
+    const featureHead = git(repo, ["rev-parse", "HEAD"]);
     git(repo, ["push", "-u", "origin", "codex/finish-smart"]);
 
     snapshot(repo, ["--write-state", "--claim-run", "auto-git do everything", "--run-id", "finish-run"], {
@@ -437,6 +438,10 @@ test("auto-git finish requires pushed branch and return to main for everything r
     assert.equal(payload.handoffCheck.satisfied, true);
     assert.equal(payload.handoffCheck.pr.url, "https://github.com/async/auto-git/pull/123");
     assert.equal(payload.ledger.status, "completed");
+    const ledger = JSON.parse(await readFile(payload.ledger.path, "utf8"));
+    const ledgerRun = ledger.runs.find((entry) => entry.id === "finish-run");
+    assert.equal(ledgerRun.branch, "codex/finish-smart");
+    assert.equal(ledgerRun.head, featureHead);
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(remote, { recursive: true, force: true });
@@ -455,6 +460,7 @@ test("auto-git finish accepts pushed merge evidence without PR handoff", async (
     git(repo, ["switch", "-c", "codex/finish-merged"]);
     await writeProjectFile(repo, "src/merged.js", "export const merged = true;\n");
     commit(repo, "feat(auto-git): prove finish merge evidence", "Codex Tester <codex@example.com>");
+    const featureHead = git(repo, ["rev-parse", "HEAD"]);
     git(repo, ["push", "-u", "origin", "codex/finish-merged"]);
 
     snapshot(repo, ["--write-state", "--claim-run", "auto-git do everything", "--run-id", "merge-run"], {
@@ -490,6 +496,10 @@ test("auto-git finish accepts pushed merge evidence without PR handoff", async (
     assert.equal(payload.handoffCheck.merge.basePushed, true);
     assert.equal(payload.branchCompletion.returnedToBase, true);
     assert.equal(payload.ledger.status, "completed");
+    const ledger = JSON.parse(await readFile(payload.ledger.path, "utf8"));
+    const ledgerRun = ledger.runs.find((entry) => entry.id === "merge-run");
+    assert.equal(ledgerRun.branch, "codex/finish-merged");
+    assert.equal(ledgerRun.head, featureHead);
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(remote, { recursive: true, force: true });
