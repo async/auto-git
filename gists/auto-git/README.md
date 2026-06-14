@@ -20,8 +20,12 @@ auto-git/
     commit-by-intent.md
     git-topology-lifecycles.md
   scripts/
-    auto-git-snapshot.mjs
+    auto-git-finish.mjs
     auto-git-gate.mjs
+    auto-git-ledger.mjs
+    auto-git-release-preflight.mjs
+    auto-git-snapshot.mjs
+    auto-git-start.mjs
 ```
 
 Gist file mapping:
@@ -32,8 +36,12 @@ Gist file mapping:
 | `auto-git.openai.yaml` | `agents/openai.yaml` |
 | `auto-git.reference-commit-by-intent.md` | `references/commit-by-intent.md` |
 | `auto-git.reference-git-topology-lifecycles.md` | `references/git-topology-lifecycles.md` |
-| `auto-git.script-auto-git-snapshot.mjs` | `scripts/auto-git-snapshot.mjs` |
+| `auto-git.script-auto-git-finish.mjs` | `scripts/auto-git-finish.mjs` |
 | `auto-git.script-auto-git-gate.mjs` | `scripts/auto-git-gate.mjs` |
+| `auto-git.script-auto-git-ledger.mjs` | `scripts/auto-git-ledger.mjs` |
+| `auto-git.script-auto-git-release-preflight.mjs` | `scripts/auto-git-release-preflight.mjs` |
+| `auto-git.script-auto-git-snapshot.mjs` | `scripts/auto-git-snapshot.mjs` |
+| `auto-git.script-auto-git-start.mjs` | `scripts/auto-git-start.mjs` |
 
 ## What It Does
 
@@ -268,11 +276,17 @@ Auto Git should not commit generated GoalBuddy board bundles such as `.goalbuddy
 
 ## Helper Scripts
 
-Run the snapshot helper before staging or verification when available:
+Run the CLI snapshot helper before staging or verification when available:
 
 ```bash
-scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state
+auto-git snapshot --cwd "$PWD" --write-state
 ```
+
+The published npm package exposes both `auto-git <command>` and per-helper
+bins like `auto-git-snapshot`. In a source checkout, the dispatcher prefers the
+local `skills/auto-git/scripts/*` helper copy. In a normal install, it uses the
+globally installed package helpers. If the CLI is not available, use the copied
+skill's `scripts/*.mjs` paths directly.
 
 The snapshot output is compact JSON. Advisory state writes fail soft with
 `stateWrite.ok=false`, so an unwritable `~/.async/auto-git` directory does not
@@ -281,10 +295,10 @@ block the first move.
 For cooperative run leases and PR handoffs:
 
 ```bash
-scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --claim-run "fix auth" --lifecycle checkpoint
-scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --heartbeat-run "<run-id>"
-scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --complete-run "<run-id>"
-scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --record-pr "<run-id>" --pr-url "https://github.com/org/repo/pull/123"
+auto-git snapshot --cwd "$PWD" --write-state --claim-run "fix auth" --lifecycle checkpoint
+auto-git snapshot --cwd "$PWD" --write-state --heartbeat-run "<run-id>"
+auto-git snapshot --cwd "$PWD" --write-state --complete-run "<run-id>"
+auto-git snapshot --cwd "$PWD" --write-state --record-pr "<run-id>" --pr-url "https://github.com/org/repo/pull/123"
 ```
 
 The snapshot emits `occupancy`, `handoffs.openPrs`, `recommendedAction`, and `prReadiness` so future chats can continue, supersede, or merge by explicit instruction.
@@ -292,10 +306,10 @@ The snapshot emits `occupancy`, `handoffs.openPrs`, `recommendedAction`, and `pr
 Controller helpers:
 
 ```sh
-scripts/auto-git-start.mjs --cwd "$PWD" --task "fix this"
-scripts/auto-git-ledger.mjs list --cwd "$PWD"
-scripts/auto-git-finish.mjs --cwd "$PWD" --run-id "<id>" --complete
-scripts/auto-git-release-preflight.mjs --cwd "$PWD" --require-verification
+auto-git start --cwd "$PWD" --task "fix this"
+auto-git ledger list --cwd "$PWD"
+auto-git finish --cwd "$PWD" --run-id "<id>" --complete
+auto-git release-preflight --cwd "$PWD" --require-verification
 ```
 
 `auto-git-finish.mjs` blocks coordinated/everything completion until the branch
@@ -309,7 +323,7 @@ ledger so later chats can find the exact handoff.
 For long or environment-sensitive gates, use:
 
 ```bash
-scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto --quiet-seconds 60 -- pnpm verify
+auto-git gate --cwd "$PWD" --profile auto --quiet-seconds 60 -- pnpm verify
 ```
 
 The gate helper records only safe metadata: command argv, profile, generated
@@ -320,6 +334,12 @@ output, secrets, npmrc content, or environment dumps.
 ## Install Notes
 
 For Codex, place the files under your skills directory using the layout above. If your Codex install uses `CODEX_HOME`, use `$CODEX_HOME/skills/auto-git`; otherwise use the default personal skills directory for your environment.
+
+For shell usage outside the copied skill directory, install the package:
+
+```bash
+npm install -g @async/auto-git
+```
 
 After copying, validate with the local skill validator if available:
 

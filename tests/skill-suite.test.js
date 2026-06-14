@@ -36,11 +36,45 @@ test("package exposes publishable Auto Git CLI bins", async () => {
   assert.equal(packageJson.devDependencies["@async/pipeline"], "0.2.4");
   assert.equal(packageJson.scripts["release:publish"], "node scripts/publish-npm.mjs");
   assert.equal(packageJson.scripts["release:doctor"], "node scripts/release-doctor.mjs");
+  assert.equal(packageJson.bin["auto-git"], "./scripts/auto-git.mjs");
 
   for (const [name, relativePath] of Object.entries(packageJson.bin)) {
     const filePath = path.join(rootDir, relativePath);
     const fileStat = await stat(filePath);
     assert.notEqual(fileStat.mode & 0o111, 0, `${name} points at an executable file`);
+  }
+});
+
+test("auto-git dispatcher prefers an explicit local source checkout", async () => {
+  const sourceRoot = await mkdtemp(path.join(tmpdir(), "auto-git-source-"));
+  const repo = await mkdtemp(path.join(tmpdir(), "auto-git-dispatch-repo-"));
+  try {
+    await mkdir(path.join(sourceRoot, "skills/auto-git/scripts"), { recursive: true });
+    await writeFile(
+      path.join(sourceRoot, "package.json"),
+      JSON.stringify({ name: "@async/auto-git", type: "module" }, null, 2) + "\n"
+    );
+    await writeFile(
+      path.join(sourceRoot, "skills/auto-git/scripts/auto-git-snapshot.mjs"),
+      "console.log(JSON.stringify({ source: 'local', argv: process.argv.slice(2) }));\n"
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [path.join(rootDir, "scripts/auto-git.mjs"), "snapshot", "--cwd", repo, "--write-state"],
+      {
+        cwd: repo,
+        encoding: "utf8",
+        env: { ...process.env, AUTO_GIT_SOURCE_ROOT: sourceRoot }
+      }
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.source, "local");
+    assert.deepEqual(payload.argv, ["--cwd", repo, "--write-state"]);
+  } finally {
+    await rm(sourceRoot, { recursive: true, force: true });
+    await rm(repo, { recursive: true, force: true });
   }
 });
 

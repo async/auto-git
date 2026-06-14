@@ -27,19 +27,23 @@ an already-established Auto Git mode for that action.
 
 ## First Move
 
-1. Start with the bundled snapshot helper when available. It emits topology,
-   dirty inventory, lock state, Git index write capability, package-manager
-   hints, occupancy, PR handoffs, and an execution plan in one JSON payload:
+1. Start with the Auto Git CLI when available. It emits topology, dirty
+   inventory, lock state, Git index write capability, package-manager hints,
+   occupancy, PR handoffs, and an execution plan in one JSON payload:
 
    ```bash
-   scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state
+   auto-git snapshot --cwd "$PWD" --write-state
    ```
 
-   The helper writes advisory metadata under `~/.async/auto-git/v1/` only when
-   `--write-state` is passed. State writes must fail soft as
-   `stateWrite: { ok: false, reason }`; they must not fail the whole snapshot.
-   Auto Git state must not store raw diffs, file contents, environment values,
-   tokens, npmrc content, or full command output.
+   If the CLI is unavailable, run the bundled helper from the installed skill
+   directory as `scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state`.
+   When working inside this source checkout, the equivalent source path is
+   `skills/auto-git/scripts/auto-git-snapshot.mjs`. The helper writes advisory
+   metadata under `~/.async/auto-git/v1/` only when `--write-state` is passed.
+   State writes must fail soft as `stateWrite: { ok: false, reason }`; they
+   must not fail the whole snapshot. Auto Git state must not store raw diffs,
+   file contents, environment values, tokens, npmrc content, or full command
+   output.
 
 2. Use the snapshot's `workflowMode`, `occupancy`, `recommendedAction`, and
    `prReadiness` before mutating:
@@ -179,14 +183,17 @@ If the worktree is large or unclear, optionally use `git-intent-audit` before co
 
 ## Environment Controller
 
-Auto Git may use bundled helpers as small deterministic controller hooks. They
-are not a replacement for commit-by-intent judgment.
+Auto Git may use the `auto-git` CLI and bundled helpers as small deterministic
+controller hooks. They are not a replacement for commit-by-intent judgment. The
+CLI dispatches to a local `@async/auto-git` source checkout when run from one;
+otherwise it uses the globally installed package helpers. If the CLI is not on
+PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
 
-- `scripts/auto-git-start.mjs --cwd "$PWD" --task "<request>"`
+- `auto-git start --cwd "$PWD" --task "<request>"`
   - wraps snapshot and `--claim-run`
   - emits `workflowMode`, `recommendedAction`, run id, PR readiness, and the
     suggested worktree command for coordinated branch work
-- `scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state`
+- `auto-git snapshot --cwd "$PWD" --write-state`
   - snapshots topology, dirty fingerprints, Git index write capability, root
     and `examples/**/.async/run.lock` state, package-manager hints, and the
     recommended execution plan
@@ -201,18 +208,18 @@ are not a replacement for commit-by-intent judgment.
   - classifies inaccessible PIDs with optional `ps` metadata; an unrelated
     inaccessible PID is a `stale-candidate`, not an auto-delete instruction
   - emits `stateWrite.ok=false` when advisory state is unwritable
-- `scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto --quiet-seconds 60 -- <command> [args...]`
+- `auto-git gate --cwd "$PWD" --profile auto --quiet-seconds 60 -- <command> [args...]`
   - runs verification with the selected execution profile and whitelisted
     Auto Git-generated environment overrides
   - records the command PID/process group so only processes started by this run
     can be cleaned up precisely
   - emits a compact receipt with duration, exit code, failure class, and quiet
     process-tree diagnostics
-- `scripts/auto-git-ledger.mjs list|show|stale|handoffs --cwd "$PWD"`
+- `auto-git ledger list|show|stale|handoffs --cwd "$PWD"`
   - prints active runs, stale runs, completed runs, PR handoffs, branches,
     worktrees, leases, and verification state from safe ledger metadata
   - never deletes ledger entries
-- `scripts/auto-git-finish.mjs --cwd "$PWD" --run-id "<id>" [--complete]`
+- `auto-git finish --cwd "$PWD" --run-id "<id>" [--complete]`
   - checks dirty state, HEAD/upstream, active run locks, PR readiness, and
     verification against current HEAD
   - blocks completion for coordinated/everything branch work until the branch
@@ -222,7 +229,7 @@ are not a replacement for commit-by-intent judgment.
   - preserves the completed branch/head in the ledger even when completion is
     run from main/default after cleanup
   - records PR metadata when asked and completes the run only when safe
-- `scripts/auto-git-release-preflight.mjs --cwd "$PWD" [--require-verification]`
+- `auto-git release-preflight --cwd "$PWD" [--require-verification]`
   - checks package version, changelog/release notes, dirty state, existing
     local tag conflicts, and optional remote release/tag state before tagging
   - successful clean release verification may be reused after switching back to
@@ -346,9 +353,9 @@ For each intent group:
 1. Stage only the files or hunks for that group.
 2. Inspect `git diff --cached --stat` and targeted `git diff --cached -- <path>`.
 3. Run the narrow relevant verification when practical.
-   - Prefer `auto-git-gate.mjs` for expensive or failure-prone gates so the receipt records profile, PID/process group, duration, and failure class.
+   - Prefer `auto-git gate` for expensive or failure-prone gates so the receipt records profile, PID/process group, duration, and failure class.
    - If the snapshot helper reports a matching successful verification cache entry, you may use it only as a signal to skip duplicate exploratory checks; still run the repo's required final gate before push/land when the repo requires it.
-   - After verification, record safe metadata with `auto-git-snapshot.mjs --write-state --record-verification <name> --exit-code <n> --execution-profile <profile>` when useful.
+   - After verification, record safe metadata with `auto-git snapshot --write-state --record-verification <name> --exit-code <n> --execution-profile <profile>` when useful.
 4. Commit with an intent-first message.
 5. Confirm the remaining dirty status before the next group.
 

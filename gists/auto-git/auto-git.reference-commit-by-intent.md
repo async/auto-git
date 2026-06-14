@@ -7,7 +7,7 @@ Auto Git owns staging and committing. For heavier read-only analysis, use `git-i
 ## Classification Workflow
 
 1. Build the change inventory:
-   - `scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state` when available
+   - `auto-git snapshot --cwd "$PWD" --write-state` when available; fall back to the installed skill's `scripts/auto-git-snapshot.mjs`
    - `git status --short`
    - `git diff --name-status`
    - `git diff --stat`
@@ -223,7 +223,7 @@ Run the smallest meaningful check for each commit group when practical:
 If verification is too expensive per commit, run it before the final push/merge and say so in the receipt.
 
 For expensive or environment-sensitive gates, prefer
-`scripts/auto-git-gate.mjs --cwd "$PWD" --profile auto -- <command> [args...]`
+`auto-git gate --cwd "$PWD" --profile auto -- <command> [args...]`
 so the receipt separates environment failures from code failures and records
 only the process group started by Auto Git.
 

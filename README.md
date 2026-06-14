@@ -77,6 +77,22 @@ Do not edit `gists/**` by hand. Update `skills/**` or `docs/gists/**`, then run:
 pnpm gists:package
 ```
 
+## Helper CLI
+
+The npm package exposes an `auto-git` dispatcher plus individual helper bins:
+
+```sh
+auto-git snapshot --cwd "$PWD" --write-state
+auto-git gate --cwd "$PWD" --profile auto -- pnpm verify
+auto-git release-preflight --cwd "$PWD" --require-verification
+```
+
+When `auto-git` runs inside this source checkout, it dispatches to the local
+`skills/auto-git/scripts/*` helpers so development uses the working tree copy.
+When installed globally, the same commands dispatch to the packaged helpers.
+The copied Codex skill can still fall back to its local `scripts/*.mjs` files
+when the npm CLI is not on `PATH`.
+
 ## Releases
 
 Release commits should use the `release(...)` intent. Keep the `package.json`

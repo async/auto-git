@@ -29,6 +29,7 @@
     "verify": "node scripts/validate-skills.js && node scripts/package-gists.js --check && node --test tests/*.test.js && node scripts/run-async-pipeline.js github check"
   },
   "bin": {
+    "auto-git": "./scripts/auto-git.mjs",
     "auto-git-finish": "./skills/auto-git/scripts/auto-git-finish.mjs",
     "auto-git-gate": "./skills/auto-git/scripts/auto-git-gate.mjs",
     "auto-git-ledger": "./skills/auto-git/scripts/auto-git-ledger.mjs",
