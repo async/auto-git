@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 - 2026-06-14
+
+- Publish npm-safe Auto Git CLI bin wrappers so package installs expose the helper commands.
+- Treat duplicate release-event publish races as successful only after the registry confirms the version exists.
+
 ## 0.2.1 - 2026-06-14
 
 - Publish `@async/auto-git` as a public npm package with CLI bins for the Auto Git helper scripts.
