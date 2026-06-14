@@ -1,5 +1,7 @@
 .async/
 .DS_Store
+dist/
+_site/
 .tmp/
 node_modules/
 *.tgz

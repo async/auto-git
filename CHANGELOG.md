@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 - 2026-06-14
+
+- Move release, preview, snapshot, GitHub Pages, and API surface checks onto the generated `@async/pipeline` workflow.
+- Replace repo-specific publish scripts with shared pipeline lifecycle commands.
+- Add generated docs-site checks and keep packaged gist docs aligned with pnpm task examples.
+
 ## 0.2.2 - 2026-06-14
 
 - Publish npm-safe Auto Git CLI bin wrappers so package installs expose the helper commands.

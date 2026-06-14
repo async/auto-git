@@ -48,7 +48,7 @@ function usage() {
     "",
     "Examples:",
     "  auto-git snapshot --cwd \"$PWD\" --write-state",
-    "  auto-git gate --cwd \"$PWD\" --profile auto -- pnpm verify",
+    "  auto-git gate --cwd \"$PWD\" --profile auto -- pnpm run verify",
     "  auto-git release-preflight --cwd \"$PWD\" --require-verification"
   ].join("\n");
 }

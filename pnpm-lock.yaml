@@ -8,17 +8,27 @@ importers:
 
   .:
     devDependencies:
+      '@async/api-contract':
+        specifier: 0.1.0
+        version: 0.1.0
       '@async/pipeline':
-        specifier: 0.2.4
-        version: 0.2.4
+        specifier: 0.4.3
+        version: 0.4.3
 
 packages:
 
-  '@async/pipeline@0.2.4':
-    resolution: {integrity: sha512-uR4v3VV4XAdIQm5xmedvVDNrbr5dnSdH9XOENB9pcZV91A7sRWtl/3wEJLR2/RARYQG4k2T7aTEMKCL1AusyAw==}
+  '@async/api-contract@0.1.0':
+    resolution: {integrity: sha512-kyeqE/Smmwwadwh7Zvs0LZoXuIh7k+6G5rqdyWIjY6vHLZQ1emp9EpL/20m6DtmjauTJxMNn/R7FQACUwfBeUw==}
+    engines: {node: '>=24'}
+    hasBin: true
+
+  '@async/pipeline@0.4.3':
+    resolution: {integrity: sha512-aY/4Tv+GEcXupS2nVsjeCsgBqT1OmuXjpznkfDIDuwYdlBGwjmXsPzERJLNZ3PAeTi4hNhRi+gDA/2ADkAc6gA==}
     engines: {node: '>=24'}
     hasBin: true
 
 snapshots:
 
-  '@async/pipeline@0.2.4': {}
+  '@async/api-contract@0.1.0': {}
+
+  '@async/pipeline@0.4.3': {}

@@ -19,6 +19,8 @@ gists/           Generated flat gist packages
 scripts/         Validation, packaging, and publishing tools
 tests/           Node test suite for package invariants
 pipeline.ts      @async/pipeline workflow definition
+api-contract.json Semantic API surface manifest
+API_SURFACE.md   Generated API surface ledger
 ```
 
 The commit intent rules live in `skills/auto-git/references/commit-by-intent.md`.
@@ -74,8 +76,12 @@ the completed branch and head for later handoff.
 Do not edit `gists/**` by hand. Update `skills/**` or `docs/gists/**`, then run:
 
 ```sh
-pnpm gists:package
+pnpm run gists:package
 ```
+
+That command is the source-to-generated implementation step for gist packages.
+Normal verification and publishing still route through the pipeline-owned
+scripts below.
 
 ## Helper CLI
 
@@ -83,7 +89,7 @@ The npm package exposes an `auto-git` dispatcher plus individual helper bins:
 
 ```sh
 auto-git snapshot --cwd "$PWD" --write-state
-auto-git gate --cwd "$PWD" --profile auto -- pnpm verify
+auto-git gate --cwd "$PWD" --profile auto -- pnpm run pipeline:verify
 auto-git release-preflight --cwd "$PWD" --require-verification
 ```
 
@@ -97,46 +103,45 @@ when the npm CLI is not on `PATH`.
 
 Release commits should use the `release(...)` intent. Keep the `package.json`
 version bump, the matching `CHANGELOG.md` section, and any lockfile or package
-metadata caused by the bump in the same release commit. `pnpm verify` checks
+metadata caused by the bump in the same release commit. `pnpm run pipeline:verify` checks
 that the current package version has a changelog entry.
 
-Before creating or pushing a release tag, run the full release gate and the
-publish-path preflight on the exact commit that will be tagged. Push the branch
-before the tag. If a remote release tag already needs to move, stop for explicit
-approval and use only a lease-protected tag update.
+Before release, run the full release gate on the exact commit that will be
+published. Push and merge the release-prep branch before using the generated
+workflow. If a remote release tag already exists and does not match the release
+commit, stop for explicit approval; do not move it from the local machine.
 
 Published releases have four public surfaces that must agree: the git tag,
 GitHub Release, npm package, and GitHub Packages mirror. Normal releases use the
 generated `@async/pipeline` workflow with npm provenance:
 
 ```sh
-pnpm release:check
-git tag vX.Y.Z
-git push origin main vX.Y.Z
-gh release create vX.Y.Z --verify-tag --generate-notes --title vX.Y.Z
-pnpm release:doctor
+pnpm run pipeline:verify -- --force
+# In GitHub Actions, run "Async Pipeline" with the publish job selected.
+pnpm run pipeline:release:doctor
 ```
 
-The release workflow publishes the GitHub Packages mirror first and then npm.
-`pnpm release:doctor` diagnoses missing or drifted tag/npm/GitHub state and
-names only repairs that are safe to run.
+The generated workflow creates or verifies the tag and GitHub Release, publishes
+the GitHub Packages mirror first, then publishes npm.
+`pnpm run pipeline:release:doctor` diagnoses missing or drifted tag/npm/GitHub
+state and names only repairs that are safe to run.
 
 ## Local Verification
 
 ```sh
 pnpm install
-pnpm verify
+pnpm run pipeline:verify
 ```
 
 Useful focused commands:
 
 ```sh
-pnpm skills:validate
-pnpm gists:check
-pnpm test
-pnpm pipeline:github:check
-pnpm release:pack
-pnpm release:doctor
+pnpm run pipeline:api-surface
+pnpm run pipeline:pack
+pnpm run pipeline:pages
+pnpm run pipeline:sync:check
+pnpm run pipeline:github:check
+pnpm run pipeline:release:doctor
 ```
 
 ## Gist Publishing
@@ -150,16 +155,22 @@ The published gist packages are generated from this repo:
 Publishing requires a token that can update those gists:
 
 ```sh
-GIST_TOKEN=... pnpm gists:publish
+GIST_TOKEN=... pnpm run pipeline:publish-gists
 ```
 
-On GitHub Actions, configure a repository secret named `GIST_TOKEN`. The generated `@async/pipeline` workflow publishes gists on pushes to `main` and on manual dispatch.
+On GitHub Actions, configure a repository secret named `GIST_TOKEN`. The
+generated `@async/pipeline` workflow publishes gists on pushes to `main`; manual
+publishing uses the generated workflow dispatch `job` selector with
+`publish-gists`.
+
+The lower-level `gists:*` scripts are implementation commands used by pipeline
+tasks and source-to-generated packaging checks.
 
 ## Pipeline
 
 `@async/pipeline` owns the GitHub Actions workflow. Regenerate after editing `pipeline.ts`:
 
 ```sh
-pnpm pipeline:github:generate
-pnpm pipeline:github:check
+pnpm run pipeline:sync:generate
+pnpm run pipeline:sync:check
 ```

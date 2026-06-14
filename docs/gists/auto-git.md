@@ -323,7 +323,7 @@ ledger so later chats can find the exact handoff.
 For long or environment-sensitive gates, use:
 
 ```bash
-auto-git gate --cwd "$PWD" --profile auto --quiet-seconds 60 -- pnpm verify
+auto-git gate --cwd "$PWD" --profile auto --quiet-seconds 60 -- pnpm run pipeline:verify
 ```
 
 The gate helper records only safe metadata: command argv, profile, generated
@@ -338,7 +338,7 @@ For Codex, place the files under your skills directory using the layout above. I
 For shell usage outside the copied skill directory, install the package:
 
 ```bash
-npm install -g @async/auto-git
+pnpm add -g @async/auto-git
 ```
 
 After copying, validate with the local skill validator if available:

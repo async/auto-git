@@ -1,6 +1,6 @@
 {
   "name": "@async/auto-git",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Auto Git skill suite for intent-based git commits, release checks, and repository handoffs.",
   "type": "module",
   "license": "MIT",
@@ -14,45 +14,59 @@
   },
   "scripts": {
     "async-pipeline": "node scripts/run-async-pipeline.js",
+    "build": "node scripts/build-dist.js",
     "gists:check": "node scripts/package-gists.js --check",
     "gists:package": "node scripts/package-gists.js --write",
     "gists:publish": "node scripts/publish-gists.js",
-    "pipeline:github:check": "node scripts/run-async-pipeline.js github check",
-    "pipeline:github:generate": "node scripts/run-async-pipeline.js github generate",
-    "pipeline:verify": "node scripts/run-async-pipeline.js run verify",
-    "release:check": "pnpm verify && npm --cache ./.async/npm-cache pack --dry-run",
-    "release:doctor": "node scripts/release-doctor.mjs",
-    "release:pack": "npm --cache ./.async/npm-cache pack --dry-run",
-    "release:publish": "node scripts/publish-npm.mjs",
+    "pipeline:api-surface": "async-pipeline run-task api-surface",
+    "pipeline:api-surface:generate": "async-pipeline run-task api-surface-generate",
+    "pipeline:github:check": "async-pipeline github check",
+    "pipeline:github:generate": "async-pipeline github generate",
+    "pipeline:pack": "async-pipeline run-task pack",
+    "pipeline:pages": "async-pipeline run pages",
+    "pipeline:preview": "async-pipeline run preview",
+    "pipeline:publish": "async-pipeline run publish",
+    "pipeline:publish-gists": "async-pipeline run publish-gists",
+    "pipeline:publish-github": "async-pipeline run publish-github",
+    "pipeline:publish:github:main": "async-pipeline publish github main --package .",
+    "pipeline:publish:github:pr": "async-pipeline publish github pr --package .",
+    "pipeline:publish:github:release": "async-pipeline publish github release --package .",
+    "pipeline:publish:npm": "async-pipeline publish npm --package .",
+    "pipeline:release-doctor": "async-pipeline run release-doctor",
+    "pipeline:release:doctor": "async-pipeline release doctor --package .",
+    "pipeline:release:ensure": "async-pipeline release ensure --package .",
+    "pipeline:snapshot": "async-pipeline run snapshot",
+    "pipeline:sync:check": "async-pipeline sync check",
+    "pipeline:sync:generate": "async-pipeline sync generate",
+    "pipeline:verify": "async-pipeline run verify",
+    "release:check": "pnpm run pipeline:verify -- --force",
     "skills:validate": "node scripts/validate-skills.js",
     "test": "node --test tests/*.test.js",
-    "verify": "node scripts/validate-skills.js && node scripts/package-gists.js --check && node --test tests/*.test.js && node scripts/run-async-pipeline.js github check"
+    "verify": "pnpm run pipeline:verify"
   },
   "bin": {
-    "auto-git": "bin/auto-git.js",
-    "auto-git-finish": "bin/auto-git-finish.js",
-    "auto-git-gate": "bin/auto-git-gate.js",
-    "auto-git-ledger": "bin/auto-git-ledger.js",
-    "auto-git-release-doctor": "bin/auto-git-release-doctor.js",
-    "auto-git-release-preflight": "bin/auto-git-release-preflight.js",
-    "auto-git-snapshot": "bin/auto-git-snapshot.js",
-    "auto-git-start": "bin/auto-git-start.js"
+    "auto-git": "dist/bin/auto-git.js",
+    "auto-git-finish": "dist/bin/auto-git-finish.js",
+    "auto-git-gate": "dist/bin/auto-git-gate.js",
+    "auto-git-ledger": "dist/bin/auto-git-ledger.js",
+    "auto-git-release-doctor": "dist/bin/auto-git-release-doctor.js",
+    "auto-git-release-preflight": "dist/bin/auto-git-release-preflight.js",
+    "auto-git-snapshot": "dist/bin/auto-git-snapshot.js",
+    "auto-git-start": "dist/bin/auto-git-start.js"
   },
   "files": [
-    "bin",
+    "API_SURFACE.md",
+    "api-contract.json",
     "CHANGELOG.md",
+    "dist",
     "LICENSE",
-    "README.md",
-    "docs/gists",
-    "gist-manifest.json",
-    "gists",
-    "scripts",
-    "skills"
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
   },
   "devDependencies": {
-    "@async/pipeline": "0.2.4"
+    "@async/api-contract": "0.1.0",
+    "@async/pipeline": "0.4.3"
   }
 }

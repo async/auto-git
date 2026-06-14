@@ -200,8 +200,8 @@ function evaluate(facts) {
 function applyAction(action) {
   if (action.id === "push-tag") return run("git", ["push", "origin", tag], { inherit: true }).status === 0;
   if (action.id === "fetch-tag") return run("git", ["fetch", "origin", "tag", tag], { inherit: true }).status === 0;
-  if (action.id === "publish-npm") return run(process.execPath, ["scripts/publish-npm.mjs"], { inherit: true }).status === 0;
-  if (action.id === "publish-github") return run(process.execPath, ["scripts/publish-github.mjs"], { inherit: true }).status === 0;
+  if (action.id === "publish-npm") return run("pnpm", ["async-pipeline", "publish", "npm", "--package", "."], { inherit: true }).status === 0;
+  if (action.id === "publish-github") return run("pnpm", ["async-pipeline", "publish", "github", "release", "--package", "."], { inherit: true }).status === 0;
   if (action.id === "create-release") return run("gh", ["release", "create", tag, "--verify-tag", "--generate-notes", "--title", tag], { inherit: true }).status === 0;
   return false;
 }
