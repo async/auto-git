@@ -43,6 +43,7 @@ export default definePipeline({
         "snapshot",
         "verify"
       ],
+      tasks: ["docs.site"],
       scripts: {
         "api-surface": "run-task api-surface",
         "api-surface:generate": "run-task api-surface-generate",
@@ -105,11 +106,12 @@ export default definePipeline({
       cache: true,
       run: sh`node --test tests/*.test.js`
     }),
-    docs: task({
-      description: "Docs site source check for the GitHub Pages README site.",
-      inputs: ["docs"],
+    "docs.site": task({
+      description: "Build the standardized GitHub Pages documentation site.",
+      inputs: ["README.md", "docs/**/*.md", "scripts/build-pages.js"],
+      outputs: [".async/pages/**"],
       cache: true,
-      run: sh`node scripts/check-docs-site.js`
+      run: sh`node scripts/build-pages.js`
     }),
     "api-surface-generate": task({
       description: "Regenerate the @async/auto-git API surface review ledger from the checked-in manifest.",
@@ -151,7 +153,7 @@ export default definePipeline({
       run: sh`node scripts/build-dist.js`
     }),
     pack: task({
-      dependsOn: ["test", "docs", "api-surface", "sync-check", "build"],
+      dependsOn: ["test", "docs.site", "api-surface", "sync-check", "build"],
       inputs: ["package", "generated"],
       cache: false,
       run: sh`npm --cache ./.async/npm-cache pack --dry-run`
@@ -215,11 +217,11 @@ export default definePipeline({
       trigger: ["pr", "main", "release", "manual"]
     }),
     pages: job({
-      target: "docs",
+      target: "docs.site",
       trigger: ["pr", "main", "manual"],
       github: {
         pages: {
-          build: { kind: "jekyll", source: "./docs", destination: "./_site" }
+          build: { kind: "static", path: ".async/pages" }
         }
       }
     }),
