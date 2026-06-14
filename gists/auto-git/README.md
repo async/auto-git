@@ -1,6 +1,6 @@
 # Auto Git Skill
 
-Auto Git is a Codex skill for turning repo changes into understandable Git history. It auto-detects the current Git topology, detects existing worktrees, groups dirty changes by change intent, then runs the requested lifecycle: checkpoint, sync, land, or fanout.
+Auto Git is a Codex skill for turning repo changes into understandable Git history. It auto-detects the current Git topology, detects existing worktrees, claims cooperative run leases, groups dirty changes by change intent, and routes work through local-review checkpoints or coordinated branch/PR/fanout flows.
 
 Optional companion skills:
 
@@ -38,7 +38,9 @@ Gist file mapping:
 ## What It Does
 
 - Detects repo root, branch, upstream, default branch, dirty state, and worktree topology before staging.
-- Uses a compact snapshot helper to detect Git index write capability, run locks, package-manager hints, and the recommended verification profile before expensive commands.
+- Uses a compact snapshot helper to detect Git index write capability, run locks, package-manager hints, ledger occupancy, PR handoffs, PR readiness, and the recommended verification profile before expensive commands.
+- Supports two workflows: local review for single-chat code review and coordinated branch for multi-chat conflicts, PR handoffs, experiments, and fanouts.
+- Tracks cooperative leases and PR handoffs under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json` without storing raw diffs, prompts, full command output, environment dumps, or secrets.
 - Commits by change intent instead of making one vague bulk commit.
 - Reads the code and diffs when there are many unstaged changes, then builds the best commit split.
 - Optionally routes large or unclear worktrees to `git-intent-audit` before committing.
@@ -47,17 +49,86 @@ Gist file mapping:
 - Keeps unrelated user edits out of commits unless the user explicitly includes them.
 - Runs expensive gates through a small helper when useful so receipts capture PID/process group, duration, execution profile, quiet diagnostics, and environment-vs-code failure classification.
 - Runs the requested Git lifecycle without treating `git add . && git commit` as acceptable automation.
+- Never merges merely because a PR is ready. Auto Git prepares or records handoffs; merge remains explicit through the `land` lifecycle or a later merge request.
 
-## Modes
+## Lifecycle Modes
+
+Legacy lifecycle modes still exist:
 
 | Mode | Use when | Result |
 | --- | --- | --- |
 | `checkpoint` | You want local commits for review | Change-intent commits only |
 | `sync` | You want the current branch pushed | Change-intent commits plus push |
-| `land` | You want the branch finished and merged | Commit, push, verify, merge to main, switch back to main |
+| `land` | You explicitly want the branch finished and merged | Commit, push, verify, merge to main, switch back to main |
 | `fanout` | You have multiple features or agents | Detect/create isolated worktrees and branch boundaries |
+| `everything` | You want Auto Git to fully manage git, commits by feature, merge, and release | Start-to-finish ownership with safety gates |
 
-If the mode is unclear, Auto Git should default to `checkpoint`.
+If mode is unclear, Auto Git should default to `checkpoint`.
+
+## Workflows
+
+Auto Git supports two workflows:
+
+| Workflow | Use when | Default result |
+| --- | --- | --- |
+| `local-review` | You are working in one chat and want to review code as it evolves | Commit by intent in the current checkout/branch |
+| `coordinated-branch` | Multiple chats/features may collide, a checkout is occupied, or you ask for branch, PR, fanout, experiment, get-this-in, ship, or merge-ready work | Isolated branch/worktree, ledger lease, verification records, PR handoff when requested |
+
+Plain implementation wording like "fix this", "add this", or "implement this
+plan" stays in local-review workflow unless paired with branch/PR/get-this-in,
+ship, fanout, experiment, or an occupied checkout.
+
+## Coordinated Intent Overlay
+
+The coordinated workflow sits on top of the old lifecycle modes:
+
+| Intent | Use when | Overlay result |
+| --- | --- | --- |
+| `merge` | "get this in", "ship", "finish this", "ready to merge" | Isolated branch/worktree, change-intent commits, verification, PR handoff |
+| `branch` | "make a branch", "branch this", "put this on a branch", "open a PR" | Isolated branch/worktree and PR handoff |
+| `experiment` | "testing something", "experimenting", "try this", "not sure of this approach" | Isolated branch/worktree and local checkpoints only |
+| `checkpoint` | "save this", "checkpoint", "commit this locally" | Local change-intent commits only |
+| `release` | "release this", "cut v1.2.3", "version bump", "prepare changelog" | Keep version, changelog/release notes, and bump-caused package metadata together |
+
+## Everything Mode
+
+Use this only for explicit requests like "auto-git do everything" or "fully
+manage all git, commits by feature, merge, and release." Everything mode wraps
+the other lifecycles:
+
+1. Start with `auto-git-start.mjs` to claim the run and choose local-review or
+   coordinated-branch workflow.
+2. Split and commit by feature/intent.
+3. Verify each group and the final repo gate.
+4. Sync/push, create or update PR handoffs, land/merge, and release only when
+   the request clearly authorizes those steps.
+5. Run `auto-git-release-preflight.mjs` before creating or pushing release tags.
+6. Finish with `auto-git-finish.mjs` so the ledger and receipt are clean.
+
+Everything mode still stops for secrets, unclear commit boundaries, destructive
+cleanup, force pushes, failed verification, missing release metadata, or remote
+tag movement without explicit approval.
+
+## Ledger States
+
+| State | Meaning |
+| --- | --- |
+| `free` | No fresh active Auto Git lease blocks the checkout |
+| `self` | This run owns the active lease |
+| `occupied` | Another fresh Auto Git run owns the checkout |
+| `stale` | A lease expired, or an expired run has a PR handoff |
+| `abandoned-candidate` | A lease expired, no active Auto Git process is known, and the branch/worktree remains |
+
+Stale entries are advisory. Auto Git can reliably detect stale chats only when those chats used Auto Git and wrote ledger state.
+
+## PR Readiness
+
+| State | Meaning |
+| --- | --- |
+| `none` | No PR should exist yet, especially experiment/checkpoint intent |
+| `draft-pr` | Commits exist but verification is missing/failing or confidence is low |
+| `ready-pr` | Branch is clean, ahead of base, and verification passed for current `HEAD` |
+| `merge-candidate` | A PR handoff exists and local verification still matches |
 
 ## Intent Types
 
@@ -93,6 +164,21 @@ migrate(db): add provider_status table
 
 `chore` is the last resort. If `deps`, `build`, `ci`, `release`, `migrate`, `security`, `style`, `test`, `docs`, or `refactor` fits, use that instead.
 
+Release commits are specific: a `release(...)` commit must include the package
+version change, normally `package.json`, plus the matching changelog or release
+notes update when the repo has one. Include lockfile or package metadata changes
+caused by the version bump in the same release commit. Do not hide unrelated
+features, fixes, docs, or dependency updates inside release metadata.
+
+Release tags come after exact-commit proof, not before it. Before creating or
+pushing a release tag, run the repo's full release gate and publish-path
+preflight on the commit that will be tagged: frozen install, lockfile/package
+metadata checks, generated-artifact checks, and registry/tag/release existence
+checks when applicable. Push the branch before the tag. If a remote release tag
+already needs to move, stop for explicit approval and use only a lease-protected
+tag update after confirming no package or GitHub Release was published for the
+old SHA.
+
 ## Confidence Levels
 
 ```text
@@ -117,13 +203,31 @@ Creates local commits grouped by change intent and leaves unrelated files unstag
 $auto-git sync this branch and keep the remote latest
 ```
 
-Creates change-intent commits, then pushes the current branch.
+Creates change-intent commits, then pushes the current branch when that action is allowed by the request.
 
 ```text
 $auto-git land this branch, merge it back to main, and switch me back to main
 ```
 
-Creates final commits, verifies, pushes, merges or fast-forwards according to repo convention, then returns to main.
+Creates final commits, verifies, pushes, merges or fast-forwards because the user explicitly requested `land`, then returns to main.
+
+```text
+$auto-git make a branch and PR for this
+```
+
+Creates or reuses an isolated branch/worktree, commits by intent, verifies when practical, and prepares a PR handoff.
+
+```text
+$auto-git get this fix in
+```
+
+Uses an isolated branch/worktree, commits by intent, verifies, and creates or recommends a ready PR. It does not merge automatically.
+
+```text
+$auto-git try this approach, not sure yet
+```
+
+Uses an isolated branch/worktree and local checkpoints, but does not open a PR until asked.
 
 ```text
 $auto-git fanout these three features into worktrees so agents do not step on each other
@@ -142,7 +246,8 @@ Reads status, diffs, nearby tests, docs, routes, package boundaries, config, and
 Auto Git should ask before:
 
 - pushing when the user only asked for local review
-- merging or landing when the user only asked to commit
+- creating a PR when the user only asked for an experiment or local checkpoint
+- merging in all cases unless the user explicitly asks for that later action
 - deleting branches or worktrees
 - force pushing or rewriting history
 - combining unrelated feature groups
@@ -161,6 +266,26 @@ scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state
 The snapshot output is compact JSON. Advisory state writes fail soft with
 `stateWrite.ok=false`, so an unwritable `~/.async/auto-git` directory does not
 block the first move.
+
+For cooperative run leases and PR handoffs:
+
+```bash
+scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --claim-run "fix auth" --lifecycle checkpoint
+scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --heartbeat-run "<run-id>"
+scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --complete-run "<run-id>"
+scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state --record-pr "<run-id>" --pr-url "https://github.com/org/repo/pull/123"
+```
+
+The snapshot emits `occupancy`, `handoffs.openPrs`, `recommendedAction`, and `prReadiness` so future chats can continue, supersede, or merge by explicit instruction.
+
+Controller helpers:
+
+```sh
+scripts/auto-git-start.mjs --cwd "$PWD" --task "fix this"
+scripts/auto-git-ledger.mjs list --cwd "$PWD"
+scripts/auto-git-finish.mjs --cwd "$PWD" --run-id "<id>" --complete
+scripts/auto-git-release-preflight.mjs --cwd "$PWD" --require-verification
+```
 
 For long or environment-sensitive gates, use:
 

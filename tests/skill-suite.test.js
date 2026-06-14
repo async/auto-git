@@ -21,6 +21,10 @@ test("manifest packages every skill into flat gist files", async () => {
     if (skill.name === "auto-git") {
       assert.ok(files.has("auto-git.script-auto-git-snapshot.mjs"), "auto-git packages snapshot helper");
       assert.ok(files.has("auto-git.script-auto-git-gate.mjs"), "auto-git packages gate helper");
+      assert.ok(files.has("auto-git.script-auto-git-start.mjs"), "auto-git packages start helper");
+      assert.ok(files.has("auto-git.script-auto-git-ledger.mjs"), "auto-git packages ledger helper");
+      assert.ok(files.has("auto-git.script-auto-git-finish.mjs"), "auto-git packages finish helper");
+      assert.ok(files.has("auto-git.script-auto-git-release-preflight.mjs"), "auto-git packages release preflight helper");
     }
   }
 });
@@ -30,6 +34,56 @@ test("companion skills use Auto Git as commit-style source", async () => {
   const rewrite = await readFile(path.join(rootDir, "skills/git-history-rewrite/SKILL.md"), "utf8");
   assert.match(audit, /Auto Git's commit style as the source of truth/);
   assert.match(rewrite, /using Auto Git's commit-by-intent style/);
+});
+
+test("auto-git release guidance requires version and changelog metadata", async () => {
+  const commitByIntent = await readFile(path.join(rootDir, "skills/auto-git/references/commit-by-intent.md"), "utf8");
+  const topology = await readFile(path.join(rootDir, "skills/auto-git/references/git-topology-lifecycles.md"), "utf8");
+  const readme = await readFile(path.join(rootDir, "docs/gists/auto-git.md"), "utf8");
+  assert.match(commitByIntent, /`release\(\.\.\.\)` commit must include the\s+package version change, normally `package\.json`/);
+  assert.match(commitByIntent, /matching changelog or\s+release notes update/);
+  assert.match(commitByIntent, /Keep versioned changelog sections with the release commit/);
+  assert.match(topology, /Before creating or pushing a release tag, prove the exact release commit/);
+  assert.match(topology, /Run the publish-path preflight before tagging/);
+  assert.match(topology, /do not move it automatically/);
+  assert.match(topology, /lease-protected tag update/);
+  assert.match(readme, /package\s+version change, normally `package\.json`/);
+  assert.match(readme, /matching changelog or release\s+notes update/);
+  assert.match(readme, /Release tags come after exact-commit proof/);
+  assert.match(readme, /Push the branch before the tag/);
+});
+
+test("auto-git docs preserve local-review and coordinated-branch workflows", async () => {
+  const skill = await readFile(path.join(rootDir, "skills/auto-git/SKILL.md"), "utf8");
+  const topology = await readFile(path.join(rootDir, "skills/auto-git/references/git-topology-lifecycles.md"), "utf8");
+  const readme = await readFile(path.join(rootDir, "docs/gists/auto-git.md"), "utf8");
+
+  for (const content of [skill, topology, readme]) {
+    assert.match(content, /local-review/);
+    assert.match(content, /coordinated-branch/);
+    assert.match(content, /fix this[\s\S]+add this[\s\S]+implement[\s\S]+local-review/);
+  }
+});
+
+test("auto-git docs describe everything mode and controller helpers", async () => {
+  const skill = await readFile(path.join(rootDir, "skills/auto-git/SKILL.md"), "utf8");
+  const topology = await readFile(path.join(rootDir, "skills/auto-git/references/git-topology-lifecycles.md"), "utf8");
+  const readme = await readFile(path.join(rootDir, "docs/gists/auto-git.md"), "utf8");
+
+  for (const content of [skill, topology, readme]) {
+    assert.match(content, /Everything mode/i);
+    assert.match(content, /commit[s]? by feature|commit-by-feature/i);
+    assert.match(content, /auto-git-start\.mjs/);
+    assert.match(content, /auto-git-finish\.mjs/);
+    assert.match(content, /auto-git-release-preflight\.mjs/);
+  }
+});
+
+test("package version has a matching changelog section", async () => {
+  const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
+  const changelog = await readFile(path.join(rootDir, "CHANGELOG.md"), "utf8");
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
+  assert.match(changelog, new RegExp(`^## ${escapeRegExp(packageJson.version)}(?:\\s|-|$)`, "m"));
 });
 
 test("history rewrite safety recipe preserves final tree and co-author trailer", async () => {
@@ -165,6 +219,276 @@ test("auto-git snapshot promotes async-pipeline hints into an execution plan", a
   }
 });
 
+test("auto-git snapshot records lease lifecycle and stale occupancy", async () => {
+  const repo = await createFixtureRepo("auto-git-lease-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-lease-state-"));
+  try {
+    let result = snapshot(
+      repo,
+      ["--write-state", "--claim-run", "get this in now", "--run-id", "run-1", "--lease-ttl-ms", "1000"],
+      { AUTO_GIT_STATE_HOME: stateHome, AUTO_GIT_NOW: "2026-06-13T00:00:00.000Z" }
+    );
+    assert.equal(result.snapshot.occupancy.status, "self");
+    assert.equal(result.snapshot.occupancy.activeRuns[0].id, "run-1");
+    assert.equal(result.snapshot.occupancy.activeRuns[0].intent, "merge");
+
+    result = snapshot(repo, ["--write-state", "--heartbeat-run", "run-1", "--lease-ttl-ms", "1000"], {
+      AUTO_GIT_STATE_HOME: stateHome,
+      AUTO_GIT_NOW: "2026-06-13T00:00:00.500Z"
+    });
+    assert.equal(result.snapshot.occupancy.status, "self");
+    assert.equal(result.snapshot.occupancy.activeRuns[0].leaseExpiresAt, "2026-06-13T00:00:01.500Z");
+
+    result = snapshot(repo, [], {
+      AUTO_GIT_STATE_HOME: stateHome,
+      AUTO_GIT_NOW: "2026-06-13T00:00:03.000Z"
+    });
+    assert.equal(result.snapshot.occupancy.status, "abandoned-candidate");
+    assert.equal(result.snapshot.occupancy.staleRuns[0].status, "abandoned-candidate");
+
+    result = snapshot(repo, ["--write-state", "--complete-run", "run-1"], {
+      AUTO_GIT_STATE_HOME: stateHome,
+      AUTO_GIT_NOW: "2026-06-13T00:00:04.000Z"
+    });
+    assert.equal(result.snapshot.occupancy.status, "free");
+    assert.equal(result.snapshot.occupancy.activeRuns.length, 0);
+    assert.equal(result.snapshot.occupancy.staleRuns.length, 0);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git snapshot classifies user intent for local review and coordinated routing", async () => {
+  const cases = [
+    ["fix this bug", "unknown", "checkpoint"],
+    ["please implement this plan", "unknown", "checkpoint"],
+    ["get this in", "merge", "checkpoint"],
+    ["ship this change", "merge", "checkpoint"],
+    ["make a branch for the docs", "branch", "checkpoint"],
+    ["open a PR for the docs", "branch", "checkpoint"],
+    ["testing something risky", "experiment", "checkpoint"],
+    ["checkpoint this locally", "checkpoint", "checkpoint"],
+    ["release this package", "release", "checkpoint"],
+    ["cut v1.2.3", "release", "checkpoint"],
+    ["version bump and prepare changelog", "release", "checkpoint"],
+    ["sync this branch", "unknown", "sync"],
+    ["land this branch", "merge", "land"],
+    ["fanout these worktrees", "unknown", "fanout"],
+    ["auto-git do everything", "unknown", "everything"]
+  ];
+
+  for (const [phrase, intent, lifecycle] of cases) {
+    const repo = await createFixtureRepo(`auto-git-intent-${lifecycle}-${intent}-`);
+    const stateHome = await mkdtemp(path.join(tmpdir(), `auto-git-intent-state-${lifecycle}-${intent}-`));
+    try {
+      const result = snapshot(repo, ["--write-state", "--claim-run", phrase, "--run-id", `run-${lifecycle}-${intent}`], {
+        AUTO_GIT_STATE_HOME: stateHome
+      });
+      assert.equal(result.snapshot.occupancy.status, "self");
+      assert.equal(result.snapshot.occupancy.activeRuns[0].intent, intent);
+      assert.equal(result.snapshot.occupancy.activeRuns[0].lifecycle, lifecycle);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+      await rm(stateHome, { recursive: true, force: true });
+    }
+  }
+});
+
+test("auto-git snapshot keeps local review on trunk and isolates coordinated work", async () => {
+  const repo = await createFixtureRepo("auto-git-worktree-routing-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-worktree-routing-state-"));
+  try {
+    let result = snapshot(repo, [], { AUTO_GIT_STATE_HOME: stateHome });
+    assert.equal(result.snapshot.occupancy.status, "free");
+    assert.equal(result.snapshot.workflowMode, "local-review");
+    assert.equal(result.snapshot.recommendedAction, "claim-run-and-continue-local-review");
+
+    result = snapshot(repo, ["--write-state", "--claim-run", "get this in", "--run-id", "merge-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.snapshot.occupancy.status, "self");
+    assert.equal(result.snapshot.workflowMode, "coordinated-branch");
+    assert.equal(result.snapshot.recommendedAction, "create-or-reuse-isolated-worktree-for-coordinated-run");
+
+    result = snapshot(repo, ["--write-state", "--complete-run", "merge-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.snapshot.occupancy.status, "free");
+
+    result = snapshot(repo, ["--write-state", "--claim-run", "review this locally", "--run-id", "other-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.snapshot.occupancy.status, "self");
+    assert.equal(result.snapshot.workflowMode, "local-review");
+
+    result = snapshot(repo, [], { AUTO_GIT_STATE_HOME: stateHome });
+    assert.equal(result.snapshot.occupancy.status, "occupied");
+    assert.equal(result.snapshot.workflowMode, "coordinated-branch");
+    assert.equal(result.snapshot.recommendedAction, "create-or-reuse-isolated-worktree");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git controller scripts start, list, and block unsafe finish", async () => {
+  const repo = await createFixtureRepo("auto-git-controllers-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-controllers-state-"));
+  try {
+    let result = script("auto-git-start.mjs", repo, ["--task", "fix this locally", "--run-id", "local-run", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr);
+    let payload = JSON.parse(result.stdout);
+    assert.equal(payload.workflowMode, "local-review");
+    assert.equal(payload.recommendedAction, "commit-locally-for-review");
+
+    result = script("auto-git-start.mjs", repo, ["--task", "auto-git do everything", "--run-id", "everything-run", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.lifecycle, "everything");
+    assert.equal(payload.workflowMode, "coordinated-branch");
+
+    result = script("auto-git-ledger.mjs", repo, ["list", "--json"], { AUTO_GIT_STATE_HOME: stateHome });
+    assert.equal(result.status, 0, result.stderr);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.ledger.runCount, 2);
+    assert.ok(payload.runs.some((run) => run.id === "everything-run"));
+
+    await writeProjectFile(repo, "src/dirty.js", "export const dirty = true;\n");
+    result = script(
+      "auto-git-finish.mjs",
+      repo,
+      ["--run-id", "everything-run", "--complete", "--json"],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    assert.equal(result.status, 1);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "blocked");
+    assert.ok(payload.blockers.includes("worktree has uncommitted changes"));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git release preflight blocks missing changelog and accepts clean release metadata", async () => {
+  const repo = await createFixtureRepo("auto-git-release-preflight-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-release-preflight-state-"));
+  try {
+    await writeProjectFile(
+      repo,
+      "package.json",
+      JSON.stringify({ name: "fixture", version: "1.2.3", type: "module" }, null, 2) + "\n"
+    );
+    commit(repo, "release(fixture): prepare 1.2.3 metadata", "Codex Tester <codex@example.com>");
+
+    let result = script("auto-git-release-preflight.mjs", repo, ["--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 1);
+    let payload = JSON.parse(result.stdout);
+    assert.equal(payload.safeToTag, false);
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("changelog")));
+
+    await writeProjectFile(repo, "CHANGELOG.md", "# Changelog\n\n## 1.2.3 - 2026-06-14\n\n- Release metadata.\n");
+    commit(repo, "release(fixture): add 1.2.3 changelog", "Codex Tester <codex@example.com>");
+    result = script("auto-git-release-preflight.mjs", repo, ["--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.safeToTag, true);
+    assert.equal(payload.releaseNotes.hasMatchingSection, true);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git snapshot derives PR readiness and records PR handoffs", async () => {
+  const repo = await createFixtureRepo("auto-git-pr-ready-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-pr-ready-state-"));
+  try {
+    git(repo, ["switch", "-c", "codex/fix-ready"]);
+    await writeProjectFile(repo, "src/app.js", "export const value = 'ready';\n");
+    commit(repo, "fix(app): make branch ready", "Codex Tester <codex@example.com>");
+
+    let result = snapshot(repo, ["--write-state", "--claim-run", "get this in", "--run-id", "ready-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.snapshot.prReadiness, "draft-pr");
+
+    result = snapshot(
+      repo,
+      [
+        "--write-state",
+        "--record-verification",
+        "pnpm verify",
+        "--exit-code",
+        "0",
+        "--run-id",
+        "ready-run"
+      ],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    assert.equal(result.snapshot.prReadiness, "ready-pr");
+
+    result = snapshot(
+      repo,
+      [
+        "--write-state",
+        "--record-pr",
+        "ready-run",
+        "--pr-url",
+        "https://github.com/async/auto-git/pull/1",
+        "--pr-number",
+        "1"
+      ],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    assert.equal(result.snapshot.prReadiness, "merge-candidate");
+    assert.equal(result.snapshot.handoffs.openPrs[0].pr.url, "https://github.com/async/auto-git/pull/1");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git snapshot keeps experiments local and rejects secret-looking ledger values", async () => {
+  const repo = await createFixtureRepo("auto-git-ledger-safety-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-ledger-safety-state-"));
+  try {
+    let result = snapshot(repo, ["--write-state", "--claim-run", "testing something", "--run-id", "experiment-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.snapshot.occupancy.activeRuns[0].intent, "experiment");
+    assert.equal(result.snapshot.prReadiness, "none");
+    assert.equal(result.snapshot.handoffs.openPrs.length, 0);
+
+    result = spawnSync(
+      process.execPath,
+      [
+        path.join(rootDir, "skills/auto-git/scripts/auto-git-snapshot.mjs"),
+        "--cwd",
+        repo,
+        "--write-state",
+        "--claim-run",
+        "fix TOKEN=abc123"
+      ],
+      { encoding: "utf8", env: { ...process.env, AUTO_GIT_STATE_HOME: stateHome } }
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /secret/i);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("auto-git gate records compact receipts and classifies environment failures", async () => {
   const repo = await createFixtureRepo("auto-git-gate-");
   const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-gate-state-"));
@@ -237,6 +561,14 @@ function gate(cwd, args = [], env = {}) {
   });
 }
 
+function script(scriptName, cwd, args = [], env = {}) {
+  const scriptPath = path.join(rootDir, "skills/auto-git/scripts", scriptName);
+  return spawnSync(process.execPath, [scriptPath, "--cwd", cwd, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ...env }
+  });
+}
+
 async function writeProjectFile(repo, filePath, content) {
   await mkdir(path.dirname(path.join(repo, filePath)), { recursive: true });
   await writeFile(path.join(repo, filePath), content);
@@ -245,4 +577,8 @@ async function writeProjectFile(repo, filePath, content) {
 function commit(repo, message, author) {
   git(repo, ["add", "-A"]);
   git(repo, ["commit", "--author", author, "-m", message]);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

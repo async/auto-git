@@ -4,7 +4,7 @@ Auto Git is a Codex skill suite for turning repository work into understandable 
 
 ## Skills
 
-- `auto-git`: stages, commits, pushes, lands, and fanouts worktrees by change intent.
+- `auto-git`: supports local-review checkpoints plus coordinated worktrees, PR handoffs, and fanouts by change intent.
 - `git-intent-audit`: read-only evidence for large dirty worktrees, unclear intent, oversized commits, mixed commits, and message/diff mismatches.
 - `git-history-rewrite`: audit-backed local history replay by change intent, preserving authorship and never force-pushing by default.
 
@@ -46,11 +46,39 @@ Use `chore: ` last. If `deps: `, `build: `, `ci: `, `release: `,
 `migrate: `, `security: `, `style: `, `test: `, `docs: `, or
 `refactor: ` fits, use that more specific intent instead.
 
+Auto Git supports two workflows. Local review is the original single-chat flow:
+commit by intent in the current checkout so code can be reviewed as it evolves.
+Coordinated branch is the multi-chat flow: when work may collide, or the user
+asks for branch/PR/fanout/experiment/get-this-in/ship, Auto Git keeps trunk as
+the coordination base and uses isolated branches/worktrees plus safe ledger
+metadata under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`. Future
+chats can see active leases, stale work, verification state, and PR handoffs.
+Auto Git never merges merely because a PR is ready; merge stays tied to
+explicit `land` or later merge intent.
+
+When the user says "auto-git do everything", Auto Git can take start-to-finish
+ownership across git status, commit-by-feature, verification, sync/PR handoff,
+land/merge, and release. That mode still stops for safety gates such as
+secrets, destructive cleanup, failed verification, force pushes, remote tag
+movement, and missing release metadata.
+
 Do not edit `gists/**` by hand. Update `skills/**` or `docs/gists/**`, then run:
 
 ```sh
 pnpm gists:package
 ```
+
+## Releases
+
+Release commits should use the `release(...)` intent. Keep the `package.json`
+version bump, the matching `CHANGELOG.md` section, and any lockfile or package
+metadata caused by the bump in the same release commit. `pnpm verify` checks
+that the current package version has a changelog entry.
+
+Before creating or pushing a release tag, run the full release gate and the
+publish-path preflight on the exact commit that will be tagged. Push the branch
+before the tag. If a remote release tag already needs to move, stop for explicit
+approval and use only a lease-protected tag update.
 
 ## Local Verification
 

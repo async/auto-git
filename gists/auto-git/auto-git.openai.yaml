@@ -1,4 +1,4 @@
 interface:
   display_name: "Auto Git"
   short_description: "Commit, push, merge, and worktree safely"
-  default_prompt: "Use $auto-git to inspect Git topology, group dirty changes by change intent, and run the requested checkpoint, sync, land, or worktree flow."
+  default_prompt: "Use $auto-git to inspect Git topology, choose local-review or coordinated-branch workflow, claim safe run state when useful, group dirty changes by intent, and run checkpoint, sync, land, everything, PR handoff, release, or worktree flows safely."

@@ -80,6 +80,16 @@ Use `git-history-rewrite` when the target is existing commits rather than the cu
 - Split mechanical renames from behavior edits when doing so makes review easier.
 - Split formatting-only churn from behavior changes unless the formatter is required by the touched files.
 - Split generated files only if the repo convention expects generated output in commits.
+- Keep release metadata together: a `release(...)` commit must include the
+  package version change, normally `package.json`, and the matching changelog or
+  release notes update when the repo has one.
+- Keep lockfile and package metadata changes caused by the version bump in the
+  same `release(...)` commit.
+- Keep versioned changelog sections with the release commit. Feature commits can
+  update docs for behavior, but should not claim a numbered release unless the
+  matching package version change is in the same commit.
+- Do not hide unrelated features, fixes, docs, or dependency updates inside a
+  release commit.
 - Do not use `chore` when `deps`, `build`, `ci`, `release`, `migrate`, `security`, `style`, `test`, `docs`, or `refactor` fits.
 - If one file contains multiple unrelated changes, use hunk-level staging.
 
@@ -194,6 +204,7 @@ Low confidence examples:
 | lockfiles | Commit with the `deps` or `build` change that caused them |
 | snapshots | Commit with the test or UI behavior change they verify |
 | generated files | Commit only when repo convention expects generated output |
+| release metadata | Commit package version changes with the matching changelog or release notes when present |
 | env/local files | Never commit unless explicitly requested |
 | large assets | Ask unless clearly part of the change |
 | deletions | Verify intentional before staging |
