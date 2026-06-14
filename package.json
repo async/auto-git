@@ -1,6 +1,6 @@
 {
   "name": "@async/auto-git",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Auto Git skill suite for intent-based git commits, release checks, and repository handoffs.",
   "type": "module",
   "license": "MIT",
