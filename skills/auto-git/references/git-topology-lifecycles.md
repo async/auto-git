@@ -79,7 +79,7 @@ detect stale chats only when those chats used Auto Git and wrote ledger state.
 - If the snapshot recommends `executionProfile: loopback-capable`, start with that profile for the expensive gate instead of first running a doomed restricted command.
 - Prefer `auto-git gate --cwd "$PWD" --profile auto --quiet-seconds 60 -- <command> [args...]` for long or environment-sensitive verification. It records the PID/process group, duration, failure class, and quiet process-tree diagnostics.
 - If npm/pnpm verification fails on HOME cache/log/config writes in a sandbox, retry the same repo-native command with `NO_UPDATE_NOTIFIER=1`, `NPM_CONFIG_CACHE=/private/tmp/<repo>-npm-cache`, and `NPM_CONFIG_LOGS_DIR=/private/tmp/<repo>-npm-logs`.
-- If the repo is `async-pipeline`, full `pnpm release:check` should use the loopback-capable profile plus tmp npm cache/log dirs because some tests bind `127.0.0.1` and the release check can spawn npm pack.
+- If the repo is `async-pipeline`, full `pnpm run release:check` should use the loopback-capable profile plus tmp npm cache/log dirs because some tests bind `127.0.0.1` and the release check can spawn npm pack.
 
 ## Lifecycle Mode Selection
 

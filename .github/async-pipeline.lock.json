@@ -3,8 +3,8 @@
   "generator": "@async/pipeline",
   "config": "pipeline.ts",
   "workflow": ".github/workflows/async-pipeline.yml",
-  "hash": "sha256:e6b6c9017c15bda1ffd6bec73631641972729e68caf6857e542f9ef1c72293ab",
-  "generatedAt": "2026-06-14T02:12:26.378Z",
+  "hash": "sha256:6269d1663875dffb1e9d956fa2b75f2e60e21cdd8d1fbf44ab6eff5da03c69b2",
+  "generatedAt": "2026-06-14T10:42:44.627Z",
   "triggers": {
     "pull_request": {},
     "push": {
@@ -17,13 +17,58 @@
   },
   "jobs": [
     {
-      "id": "publish",
+      "id": "pages",
       "target": [
-        "publish-npm"
+        "docs"
       ],
       "trigger": [
-        "release",
+        "pr",
+        "main",
         "manual"
+      ],
+      "env": {},
+      "github": {
+        "pages": {
+          "build": {
+            "kind": "jekyll",
+            "source": "./docs",
+            "destination": "./_site"
+          }
+        }
+      },
+      "if": "(github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'pages')"
+    },
+    {
+      "id": "preview",
+      "target": [
+        "preview"
+      ],
+      "trigger": [
+        "pr"
+      ],
+      "env": {
+        "GITHUB_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "GITHUB_TOKEN"
+        }
+      },
+      "github": {
+        "permissions": {
+          "issues": "write",
+          "packages": "write",
+          "pullRequests": "write"
+        }
+      },
+      "if": "github.event_name == 'pull_request'"
+    },
+    {
+      "id": "publish",
+      "target": [
+        "publish"
+      ],
+      "trigger": [
+        "manual",
+        "release"
       ],
       "env": {
         "GITHUB_TOKEN": {
@@ -44,10 +89,11 @@
       },
       "github": {
         "permissions": {
+          "contents": "read",
           "packages": "write"
         }
       },
-      "if": "(github.event_name == 'release') || (github.event_name == 'workflow_dispatch')"
+      "if": "(github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'publish') || (github.event_name == 'release')"
     },
     {
       "id": "publish-gists",
@@ -64,7 +110,29 @@
           "name": "GIST_TOKEN"
         }
       },
-      "if": "(github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')"
+      "if": "(github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'publish-gists')"
+    },
+    {
+      "id": "publish-github",
+      "target": [
+        "publish-github"
+      ],
+      "trigger": [
+        "manual"
+      ],
+      "env": {
+        "GITHUB_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "GITHUB_TOKEN"
+        }
+      },
+      "github": {
+        "permissions": {
+          "contents": "write",
+          "packages": "write"
+        }
+      },
+      "if": "github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'publish-github'"
     },
     {
       "id": "release-doctor",
@@ -84,12 +152,26 @@
           "name": "NPM_TOKEN"
         }
       },
-      "environment": {
-        "name": "npm-publish",
-        "url": "https://www.npmjs.com/package/@async/auto-git"
+      "github": {
+        "permissions": {
+          "packages": "write"
+        }
       },
-      "requires": {
-        "provenance": true
+      "if": "github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'release-doctor'"
+    },
+    {
+      "id": "snapshot",
+      "target": [
+        "snapshot"
+      ],
+      "trigger": [
+        "main"
+      ],
+      "env": {
+        "GITHUB_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "GITHUB_TOKEN"
+        }
       },
       "github": {
         "permissions": {
@@ -97,25 +179,32 @@
           "packages": "write"
         }
       },
-      "if": "github.event_name == 'workflow_dispatch'"
+      "if": "github.event_name == 'push' && (github.ref == 'refs/heads/main')"
     },
     {
       "id": "verify",
       "target": [
-        "test",
-        "check-github"
+        "pack"
       ],
       "trigger": [
         "pr",
         "main",
-        "manual",
-        "release"
+        "release",
+        "manual"
       ],
       "env": {},
-      "if": "(github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch') || (github.event_name == 'release')"
+      "if": "(github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'release') || (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'verify')"
     }
   ],
   "packageManager": "pnpm",
   "nodeVersion": "24",
-  "taskCache": true
+  "taskCache": true,
+  "manualDispatchJobs": [
+    "pages",
+    "publish",
+    "publish-gists",
+    "publish-github",
+    "release-doctor",
+    "verify"
+  ]
 }

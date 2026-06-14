@@ -594,7 +594,7 @@ function packageManagerHints(repoRoot, packageJson, asyncRunLocks) {
     hints.push({
       id: "async-pipeline-release-check",
       appliesWhen: ["running full async-pipeline release gate from Codex"],
-      commandName: "pnpm release:check",
+      commandName: "pnpm run release:check",
       retryEnv,
       executionProfile: "loopback-capable",
       startWithPlainCommand: false,
@@ -609,8 +609,8 @@ function buildExecutionPlan(repoRoot, packageJson, asyncRunLocks, gitIndexWrite)
   const asyncPipeline = isAsyncPipelineRepo(repoRoot, packageJson);
   const verification = asyncPipeline
     ? {
-        name: "pnpm release:check",
-        command: ["pnpm", "release:check"],
+        name: "pnpm run release:check",
+        command: ["pnpm", "run", "release:check"],
         executionProfile: "loopback-capable",
         env: retryEnv,
         reason: "async-pipeline release checks may bind loopback and spawn npm pack"
@@ -618,7 +618,7 @@ function buildExecutionPlan(repoRoot, packageJson, asyncRunLocks, gitIndexWrite)
     : packageJson.hasVerify
       ? {
           name: "pnpm verify",
-          command: ["pnpm", "verify"],
+          command: ["pnpm", "run", "verify"],
           executionProfile: "default",
           env: {},
           reason: "repo exposes a verify script"

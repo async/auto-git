@@ -30,17 +30,24 @@ test("manifest packages every skill into flat gist files", async () => {
 });
 
 test("package exposes publishable Auto Git CLI bins", async () => {
+  execFileSync(process.execPath, [path.join(rootDir, "scripts/build-dist.js")], { cwd: rootDir });
+
   const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
   assert.equal(packageJson.private, undefined);
   assert.equal(packageJson.publishConfig.access, "public");
-  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.2.4");
-  assert.equal(packageJson.scripts["release:publish"], "node scripts/publish-npm.mjs");
-  assert.equal(packageJson.scripts["release:doctor"], "node scripts/release-doctor.mjs");
-  assert.equal(packageJson.bin["auto-git"], "bin/auto-git.js");
-  assert.ok(packageJson.files.includes("bin"));
+  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.4.3");
+  assert.equal(packageJson.devDependencies["@async/api-contract"], "0.1.0");
+  assert.equal(packageJson.scripts["pipeline:publish:npm"], "async-pipeline publish npm --package .");
+  assert.equal(packageJson.scripts["pipeline:publish:github:release"], "async-pipeline publish github release --package .");
+  assert.equal(packageJson.scripts["pipeline:release:doctor"], "async-pipeline release doctor --package .");
+  assert.equal(packageJson.scripts["pipeline:release:ensure"], "async-pipeline release ensure --package .");
+  assert.equal(packageJson.bin["auto-git"], "dist/bin/auto-git.js");
+  assert.ok(packageJson.files.includes("dist"));
+  assert.ok(packageJson.files.includes("API_SURFACE.md"));
+  assert.ok(packageJson.files.includes("api-contract.json"));
 
   for (const [name, relativePath] of Object.entries(packageJson.bin)) {
-    assert.match(relativePath, /^bin\/.+\.js$/, `${name} uses an npm-safe bin wrapper`);
+    assert.match(relativePath, /^dist\/bin\/.+\.js$/, `${name} uses a generated npm-safe bin wrapper`);
     const filePath = path.join(rootDir, relativePath);
     const fileStat = await stat(filePath);
     assert.notEqual(fileStat.mode & 0o111, 0, `${name} points at an executable file`);
@@ -52,6 +59,45 @@ test("package exposes publishable Auto Git CLI bins", async () => {
   });
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /Usage: auto-git <command>/);
+});
+
+test("pipeline sync owns lifecycle scripts, workflow dispatch, pages, and API surface checks", async () => {
+  const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
+  const workflow = await readFile(path.join(rootDir, ".github/workflows/async-pipeline.yml"), "utf8");
+  const readme = await readFile(path.join(rootDir, "README.md"), "utf8");
+  const gistReadme = await readFile(path.join(rootDir, "docs/gists/auto-git.md"), "utf8");
+  const taskLock = JSON.parse(await readFile(path.join(rootDir, ".async-pipeline/tasks.lock.json"), "utf8"));
+  const apiSurface = await readFile(path.join(rootDir, "API_SURFACE.md"), "utf8");
+  const apiContract = JSON.parse(await readFile(path.join(rootDir, "api-contract.json"), "utf8"));
+
+  assert.equal(packageJson.scripts["pipeline:sync:check"], "async-pipeline sync check");
+  assert.equal(packageJson.scripts["pipeline:api-surface"], "async-pipeline run-task api-surface");
+  assert.equal(packageJson.scripts["pipeline:pages"], "async-pipeline run pages");
+  assert.equal(packageJson.scripts["pipeline:preview"], "async-pipeline run preview");
+  assert.equal(packageJson.scripts["pipeline:snapshot"], "async-pipeline run snapshot");
+  assert.equal(packageJson.scripts["pipeline:publish-gists"], "async-pipeline run publish-gists");
+
+  assert.match(workflow, /type: choice/);
+  assert.match(workflow, /- "publish-gists"/);
+  assert.match(workflow, /pages-deploy/);
+  assert.match(workflow, /pnpm async-pipeline run preview/);
+  assert.match(workflow, /pnpm async-pipeline run snapshot/);
+  assert.match(workflow, /contents: write/);
+
+  assert.ok(taskLock.commands.some((command) => command.name === "pipeline:publish:github:pr"));
+  assert.ok(taskLock.commands.some((command) => command.name === "pipeline:release:ensure"));
+  assert.equal(apiContract.packageName, "@async/auto-git");
+  assert.match(apiSurface, /Auto Git CLI/);
+  assert.match(apiSurface, /bin\.auto-git-release-preflight/);
+  assert.match(apiSurface, /job\.publish-github/);
+  assert.match(apiSurface, /package\.dist-runtime/);
+
+  for (const docs of [readme, gistReadme]) {
+    assert.doesNotMatch(docs, /auto-git gate[\s\S]*pnpm run verify/);
+    assert.match(docs, /pnpm run pipeline:verify/);
+  }
+  assert.match(readme, /GIST_TOKEN=\.\.\. pnpm run pipeline:publish-gists/);
+  assert.doesNotMatch(readme, /pnpm run (verify|test|gists:check|gists:publish|skills:validate)/);
 });
 
 test("auto-git dispatcher prefers an explicit local source checkout", async () => {
@@ -260,7 +306,7 @@ test("auto-git snapshot promotes async-pipeline hints into an execution plan", a
         {
           name: "async-pipeline-workspace",
           packageManager: "pnpm@10.20.0",
-          scripts: { "release:check": "pnpm build" }
+          scripts: { "release:check": "pnpm run build" }
         },
         null,
         2
@@ -268,7 +314,7 @@ test("auto-git snapshot promotes async-pipeline hints into an execution plan", a
     );
 
     const result = snapshot(repo);
-    assert.equal(result.snapshot.executionPlan.verification.name, "pnpm release:check");
+    assert.equal(result.snapshot.executionPlan.verification.name, "pnpm run release:check");
     assert.equal(result.snapshot.executionPlan.verification.executionProfile, "loopback-capable");
     assert.equal(result.snapshot.executionPlan.verification.env.NO_UPDATE_NOTIFIER, "1");
     assert.ok(
@@ -454,7 +500,7 @@ test("auto-git finish requires pushed branch and return to main for everything r
     });
     snapshot(
       repo,
-      ["--write-state", "--record-verification", "pnpm verify", "--exit-code", "0", "--run-id", "finish-run"],
+      ["--write-state", "--record-verification", "pnpm run verify", "--exit-code", "0", "--run-id", "finish-run"],
       { AUTO_GIT_STATE_HOME: stateHome }
     );
 
@@ -524,7 +570,7 @@ test("auto-git finish accepts pushed merge evidence without PR handoff", async (
     snapshot(repo, ["--write-state", "--claim-run", "auto-git do everything", "--run-id", "merge-run"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
-    snapshot(repo, ["--write-state", "--record-verification", "pnpm verify", "--exit-code", "0", "--run-id", "merge-run"], {
+    snapshot(repo, ["--write-state", "--record-verification", "pnpm run verify", "--exit-code", "0", "--run-id", "merge-run"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
 
@@ -617,7 +663,7 @@ test("auto-git release preflight reuses clean same-head verification after branc
     git(repo, ["switch", "-c", "codex/release-fixture"]);
     git(repo, ["push", "-u", "origin", "codex/release-fixture"]);
 
-    snapshot(repo, ["--write-state", "--record-verification", "pnpm verify", "--exit-code", "0"], {
+    snapshot(repo, ["--write-state", "--record-verification", "pnpm run verify", "--exit-code", "0"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
 
@@ -689,7 +735,7 @@ test("auto-git snapshot derives PR readiness and records PR handoffs", async () 
       [
         "--write-state",
         "--record-verification",
-        "pnpm verify",
+        "pnpm run verify",
         "--exit-code",
         "0",
         "--run-id",

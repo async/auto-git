@@ -1,0 +1,311 @@
+{
+  "format": "api-contract.package.v1",
+  "packageName": "@async/auto-git",
+  "catalogs": [
+    {
+      "format": "api-contract.catalog.v1",
+      "contractId": "@async/auto-git.cli",
+      "title": "Auto Git CLI",
+      "features": [
+        {
+          "id": "bin.auto-git",
+          "title": "auto-git dispatcher",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-finish",
+          "title": "Auto Git finish helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-gate",
+          "title": "Auto Git verification gate helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-ledger",
+          "title": "Auto Git ledger inspection helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-release-doctor",
+          "title": "Auto Git release doctor helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-release-preflight",
+          "title": "Auto Git release tag preflight helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-snapshot",
+          "title": "Auto Git topology snapshot helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        },
+        {
+          "id": "bin.auto-git-start",
+          "title": "Auto Git start helper",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "bins"
+        }
+      ]
+    },
+    {
+      "format": "api-contract.catalog.v1",
+      "contractId": "@async/auto-git.skills",
+      "title": "Auto Git Skill Packages",
+      "features": [
+        {
+          "id": "gist.auto-git",
+          "title": "Generated Auto Git gist package",
+          "releaseTag": "public",
+          "stability": "generated",
+          "lifecycle": "active",
+          "group": "gists"
+        },
+        {
+          "id": "gist.git-history-rewrite",
+          "title": "Generated Git History Rewrite gist package",
+          "releaseTag": "public",
+          "stability": "generated",
+          "lifecycle": "active",
+          "group": "gists"
+        },
+        {
+          "id": "gist.git-intent-audit",
+          "title": "Generated Git Intent Audit gist package",
+          "releaseTag": "public",
+          "stability": "generated",
+          "lifecycle": "active",
+          "group": "gists"
+        },
+        {
+          "id": "skill.auto-git",
+          "title": "Auto Git Codex skill",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "skills"
+        },
+        {
+          "id": "skill.git-history-rewrite",
+          "title": "Git History Rewrite Codex skill",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "skills"
+        },
+        {
+          "id": "skill.git-intent-audit",
+          "title": "Git Intent Audit Codex skill",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "skills"
+        }
+      ]
+    },
+    {
+      "format": "api-contract.catalog.v1",
+      "contractId": "@async/auto-git.lifecycle",
+      "title": "Auto Git Pipeline Lifecycle",
+      "features": [
+        {
+          "id": "job.pages",
+          "title": "Generated GitHub Pages job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.preview",
+          "title": "PR preview package job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.publish",
+          "title": "npm publish job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.publish-gists",
+          "title": "Gist publishing job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.publish-github",
+          "title": "Stable GitHub Packages mirror job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.release-doctor",
+          "title": "Release doctor job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.snapshot",
+          "title": "Main snapshot package job",
+          "releaseTag": "beta",
+          "stability": "preview",
+          "lifecycle": "active",
+          "group": "jobs"
+        },
+        {
+          "id": "job.verify",
+          "title": "Verification job",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "jobs"
+        }
+      ]
+    },
+    {
+      "format": "api-contract.catalog.v1",
+      "contractId": "@async/auto-git.package",
+      "title": "Auto Git Package Metadata",
+      "features": [
+        {
+          "id": "package.api-ledger",
+          "title": "Published API surface ledger files",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "metadata"
+        },
+        {
+          "id": "package.dist-runtime",
+          "title": "Generated dist runtime included in package files",
+          "releaseTag": "public",
+          "stability": "generated",
+          "lifecycle": "active",
+          "group": "metadata"
+        },
+        {
+          "id": "package.public-access",
+          "title": "Public npm package publish configuration",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "metadata"
+        },
+        {
+          "id": "package.type-module",
+          "title": "Node ESM package boundary",
+          "releaseTag": "public",
+          "stability": "stable",
+          "lifecycle": "active",
+          "group": "metadata"
+        }
+      ]
+    }
+  ],
+  "supported": [
+    {
+      "format": "api-contract.surface.v1",
+      "contractId": "@async/auto-git.cli",
+      "features": [
+        "bin.auto-git",
+        "bin.auto-git-finish",
+        "bin.auto-git-gate",
+        "bin.auto-git-ledger",
+        "bin.auto-git-release-doctor",
+        "bin.auto-git-release-preflight",
+        "bin.auto-git-snapshot",
+        "bin.auto-git-start"
+      ]
+    },
+    {
+      "format": "api-contract.surface.v1",
+      "contractId": "@async/auto-git.skills",
+      "features": [
+        "gist.auto-git",
+        "gist.git-history-rewrite",
+        "gist.git-intent-audit",
+        "skill.auto-git",
+        "skill.git-history-rewrite",
+        "skill.git-intent-audit"
+      ]
+    },
+    {
+      "format": "api-contract.surface.v1",
+      "contractId": "@async/auto-git.lifecycle",
+      "features": [
+        "job.pages",
+        "job.preview",
+        "job.publish",
+        "job.publish-gists",
+        "job.publish-github",
+        "job.release-doctor",
+        "job.snapshot",
+        "job.verify"
+      ]
+    },
+    {
+      "format": "api-contract.surface.v1",
+      "contractId": "@async/auto-git.package",
+      "features": [
+        "package.api-ledger",
+        "package.dist-runtime",
+        "package.public-access",
+        "package.type-module"
+      ]
+    }
+  ],
+  "required": [
+    {
+      "format": "api-contract.surface.v1",
+      "contractId": "@async/pipeline.cli",
+      "features": [
+        "cli.github.check",
+        "cli.github.generate",
+        "cli.publish.github",
+        "cli.publish.npm",
+        "cli.release.doctor",
+        "cli.run",
+        "cli.run-task",
+        "cli.sync.check",
+        "cli.sync.generate"
+      ]
+    }
+  ]
+}
