@@ -286,7 +286,7 @@ export default definePipeline({
       },
       github: {
         permissions: {
-          contents: "read",
+          contents: "write",
           packages: "write"
         }
       }
