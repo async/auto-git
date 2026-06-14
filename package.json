@@ -29,16 +29,17 @@
     "verify": "node scripts/validate-skills.js && node scripts/package-gists.js --check && node --test tests/*.test.js && node scripts/run-async-pipeline.js github check"
   },
   "bin": {
-    "auto-git": "./scripts/auto-git.mjs",
-    "auto-git-finish": "./skills/auto-git/scripts/auto-git-finish.mjs",
-    "auto-git-gate": "./skills/auto-git/scripts/auto-git-gate.mjs",
-    "auto-git-ledger": "./skills/auto-git/scripts/auto-git-ledger.mjs",
-    "auto-git-release-doctor": "./scripts/release-doctor.mjs",
-    "auto-git-release-preflight": "./skills/auto-git/scripts/auto-git-release-preflight.mjs",
-    "auto-git-snapshot": "./skills/auto-git/scripts/auto-git-snapshot.mjs",
-    "auto-git-start": "./skills/auto-git/scripts/auto-git-start.mjs"
+    "auto-git": "bin/auto-git.js",
+    "auto-git-finish": "bin/auto-git-finish.js",
+    "auto-git-gate": "bin/auto-git-gate.js",
+    "auto-git-ledger": "bin/auto-git-ledger.js",
+    "auto-git-release-doctor": "bin/auto-git-release-doctor.js",
+    "auto-git-release-preflight": "bin/auto-git-release-preflight.js",
+    "auto-git-snapshot": "bin/auto-git-snapshot.js",
+    "auto-git-start": "bin/auto-git-start.js"
   },
   "files": [
+    "bin",
     "CHANGELOG.md",
     "LICENSE",
     "README.md",

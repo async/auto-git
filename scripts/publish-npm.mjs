@@ -33,12 +33,33 @@ function isMissingVersion(result) {
   return result.status !== 0 && /(^|[\s])(E404|404)([\s]|$)|not found/i.test(output(result));
 }
 
+function viewVersion() {
+  return npm(["view", spec, "version", "--registry", REGISTRY]);
+}
+
+function hasPublishedVersion(result) {
+  return result.status === 0 && result.stdout.trim() === manifest.version;
+}
+
+async function waitForPublishedVersion() {
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    const view = viewVersion();
+    if (hasPublishedVersion(view)) {
+      return true;
+    }
+    if (attempt < 8) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, attempt * 2000));
+    }
+  }
+  return false;
+}
+
 if (manifest.private) {
   fail(`${manifest.name} is marked private; refusing to publish.`);
 }
 
-const view = npm(["view", spec, "version", "--registry", REGISTRY]);
-if (view.status === 0 && view.stdout.trim() === manifest.version) {
+const view = viewVersion();
+if (hasPublishedVersion(view)) {
   console.log(`${spec} is already published to npm; skipping.`);
   process.exit(0);
 }
@@ -52,4 +73,13 @@ const publish = npm(
   ["publish", "--access", "public", "--registry", REGISTRY, "--provenance"],
   { inherit: true }
 );
+if (publish.status === 0) {
+  process.exit(0);
+}
+
+if (await waitForPublishedVersion()) {
+  console.log(`${spec} appeared on npm after a publish race; treating as success.`);
+  process.exit(0);
+}
+
 process.exit(publish.status ?? 1);

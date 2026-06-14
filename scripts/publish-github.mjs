@@ -20,6 +20,10 @@ function isMissingVersion(result) {
   return result.status !== 0 && /(^|[\s])(E404|404)([\s]|$)|not found/i.test(text);
 }
 
+function hasPublishedVersion(result) {
+  return result.status === 0 && result.stdout.trim() === manifest.version;
+}
+
 const scope = manifest.name.match(/^@([^/]+)\//)?.[1]?.toLowerCase();
 const owner = (process.env.GITHUB_REPOSITORY_OWNER ?? scope ?? "").toLowerCase();
 if (!scope || !owner || scope !== owner) {
@@ -53,9 +57,26 @@ function npm(args, options = {}) {
   });
 }
 
+function viewVersion() {
+  return npm(["view", spec, "version", "--registry", GITHUB_REGISTRY]);
+}
+
+async function waitForPublishedVersion() {
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    const view = viewVersion();
+    if (hasPublishedVersion(view)) {
+      return true;
+    }
+    if (attempt < 8) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, attempt * 2000));
+    }
+  }
+  return false;
+}
+
 try {
-  const view = npm(["view", spec, "version", "--registry", GITHUB_REGISTRY]);
-  if (view.status === 0 && view.stdout.trim() === manifest.version) {
+  const view = viewVersion();
+  if (hasPublishedVersion(view)) {
     console.log(`${spec} is already published to GitHub Packages; skipping publish.`);
   } else {
     if (!isMissingVersion(view)) {
@@ -67,7 +88,11 @@ try {
       inherit: true
     });
     if (publish.status !== 0) {
-      process.exit(publish.status ?? 1);
+      if (await waitForPublishedVersion()) {
+        console.log(`${spec} appeared on GitHub Packages after a publish race; treating as success.`);
+      } else {
+        process.exit(publish.status ?? 1);
+      }
     }
   }
 

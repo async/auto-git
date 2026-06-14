@@ -36,13 +36,22 @@ test("package exposes publishable Auto Git CLI bins", async () => {
   assert.equal(packageJson.devDependencies["@async/pipeline"], "0.2.4");
   assert.equal(packageJson.scripts["release:publish"], "node scripts/publish-npm.mjs");
   assert.equal(packageJson.scripts["release:doctor"], "node scripts/release-doctor.mjs");
-  assert.equal(packageJson.bin["auto-git"], "./scripts/auto-git.mjs");
+  assert.equal(packageJson.bin["auto-git"], "bin/auto-git.js");
+  assert.ok(packageJson.files.includes("bin"));
 
   for (const [name, relativePath] of Object.entries(packageJson.bin)) {
+    assert.match(relativePath, /^bin\/.+\.js$/, `${name} uses an npm-safe bin wrapper`);
     const filePath = path.join(rootDir, relativePath);
     const fileStat = await stat(filePath);
     assert.notEqual(fileStat.mode & 0o111, 0, `${name} points at an executable file`);
   }
+
+  const help = spawnSync(process.execPath, [path.join(rootDir, packageJson.bin["auto-git"]), "--help"], {
+    cwd: rootDir,
+    encoding: "utf8"
+  });
+  assert.equal(help.status, 0, help.stderr || help.stdout);
+  assert.match(help.stdout, /Usage: auto-git <command>/);
 });
 
 test("auto-git dispatcher prefers an explicit local source checkout", async () => {
