@@ -89,6 +89,22 @@ publish-path preflight on the exact commit that will be tagged. Push the branch
 before the tag. If a remote release tag already needs to move, stop for explicit
 approval and use only a lease-protected tag update.
 
+Published releases have four public surfaces that must agree: the git tag,
+GitHub Release, npm package, and GitHub Packages mirror. Normal releases use the
+generated `@async/pipeline` workflow with npm provenance:
+
+```sh
+pnpm release:check
+git tag vX.Y.Z
+git push origin main vX.Y.Z
+gh release create vX.Y.Z --verify-tag --generate-notes --title vX.Y.Z
+pnpm release:doctor
+```
+
+The release workflow publishes the GitHub Packages mirror first and then npm.
+`pnpm release:doctor` diagnoses missing or drifted tag/npm/GitHub state and
+names only repairs that are safe to run.
+
 ## Local Verification
 
 ```sh
@@ -103,6 +119,8 @@ pnpm skills:validate
 pnpm gists:check
 pnpm test
 pnpm pipeline:github:check
+pnpm release:pack
+pnpm release:doctor
 ```
 
 ## Gist Publishing

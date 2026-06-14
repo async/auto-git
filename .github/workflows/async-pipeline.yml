@@ -8,12 +8,64 @@ on:
   push:
     branches:
       - "main"
+  release:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  publish:
+    name: publish
+    if: (github.event_name == 'release') || (github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment:
+      name: "npm-publish"
+      url: "https://www.npmjs.com/package/@async/auto-git"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Restore task cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .async/cache
+          key: async-pipeline-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            async-pipeline-${{ runner.os }}-
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Use current npm
+        run: npm install -g npm@11.16.0
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated workflow
+        run: pnpm async-pipeline github check
+
+      - name: Run pipeline job
+        run: pnpm async-pipeline run publish
+        env:
+          CI: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish-gists:
     name: publish-gists
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')
@@ -54,9 +106,60 @@ jobs:
           CI: true
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
 
+  release-doctor:
+    name: release-doctor
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: "npm-publish"
+      url: "https://www.npmjs.com/package/@async/auto-git"
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Restore task cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .async/cache
+          key: async-pipeline-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            async-pipeline-${{ runner.os }}-
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Use current npm
+        run: npm install -g npm@11.16.0
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated workflow
+        run: pnpm async-pipeline github check
+
+      - name: Run pipeline job
+        run: pnpm async-pipeline run release-doctor
+        env:
+          CI: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   verify:
     name: verify
-    if: (github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')
+    if: (github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch') || (github.event_name == 'release')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

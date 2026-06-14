@@ -223,8 +223,13 @@ Before creating or pushing a release tag, prove the exact release commit:
    pass.
 6. Create or dispatch publish/release automation according to the repo's
    documented release path.
-7. Verify package visibility, release visibility, tag target, and release CI
-   before reporting success.
+7. Verify package visibility, GitHub Packages mirror visibility when present,
+   release visibility, tag target, and release CI before reporting success.
+
+For npm packages, a healthy release means the version in `package.json`, the git
+tag, GitHub Release, npm package, and GitHub Packages mirror agree. Prefer the
+repo's generated `@async/pipeline` release workflow with npm provenance and run
+the repo's release doctor or equivalent reconciliation check after publishing.
 
 If preflight finds drift after a tag was created locally, move the local tag
 before pushing it. If a remote tag was already pushed and the final release

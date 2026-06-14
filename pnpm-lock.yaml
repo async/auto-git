@@ -9,16 +9,16 @@ importers:
   .:
     devDependencies:
       '@async/pipeline':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.2.4
+        version: 0.2.4
 
 packages:
 
-  '@async/pipeline@0.2.0':
-    resolution: {integrity: sha512-niBWKPXktqyF6KwwJTXEfDBVbwnWXtnS22oG7md9qbKGaWJSOD8igM+wM2VePrmho0d1GdA873GKNXW8IINyWw==}
+  '@async/pipeline@0.2.4':
+    resolution: {integrity: sha512-uR4v3VV4XAdIQm5xmedvVDNrbr5dnSdH9XOENB9pcZV91A7sRWtl/3wEJLR2/RARYQG4k2T7aTEMKCL1AusyAw==}
     engines: {node: '>=24'}
     hasBin: true
 
 snapshots:
 
-  '@async/pipeline@0.2.0': {}
+  '@async/pipeline@0.2.4': {}

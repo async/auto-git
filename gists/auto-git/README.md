@@ -184,6 +184,12 @@ already needs to move, stop for explicit approval and use only a lease-protected
 tag update after confirming no package or GitHub Release was published for the
 old SHA.
 
+For publishable packages, release completion means the git tag, GitHub Release,
+npm package, and GitHub Packages mirror agree. Prefer the repo's generated
+`@async/pipeline` release workflow with npm provenance. Use a release doctor or
+equivalent check after publishing to verify npm, GitHub Packages, tag, release,
+and workflow state instead of assuming a tag push published the package.
+
 ## Confidence Levels
 
 ```text

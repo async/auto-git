@@ -113,13 +113,21 @@ function discoverReleaseNotes(repoRoot) {
 function matchingVerification(snapshot) {
   const repoDir = join(stateRoot(), "repos", snapshot.repo.hash || sha256(snapshot.repo.root, 24));
   const verifications = tryReadJson(join(repoDir, "verifications.json"), { entries: [] });
-  return (Array.isArray(verifications.entries) ? verifications.entries : []).find(
+  const entries = Array.isArray(verifications.entries) ? verifications.entries : [];
+  const isReusable = (entry) =>
+    entry.exitCode === 0 &&
+    entry.head === snapshot.topology.head &&
+    /(?:release|verify|check|test)/i.test(entry.name ?? "");
+  const exact = entries.find(
     (entry) =>
-      entry.exitCode === 0 &&
-      entry.head === snapshot.topology.head &&
+      isReusable(entry) &&
       entry.dirtyFingerprint === snapshot.dirty.fingerprint &&
       /(?:release|verify|check|test)/i.test(entry.name ?? "")
   );
+  if (exact) return { ...exact, matchType: "exact" };
+
+  const cleanSameHead = entries.find((entry) => isReusable(entry) && !snapshot.dirty.isDirty);
+  return cleanSameHead ? { ...cleanSameHead, matchType: "clean-same-head" } : undefined;
 }
 
 function tagStatus(repoRoot, tagName, head) {
@@ -231,6 +239,7 @@ function buildReceipt(options) {
     verification: verification
       ? {
           name: verification.name,
+          matchType: verification.matchType,
           recordedAt: verification.recordedAt,
           head: verification.head
         }

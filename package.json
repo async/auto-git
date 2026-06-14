@@ -1,7 +1,7 @@
 {
   "name": "@async/auto-git",
   "version": "0.2.0",
-  "private": true,
+  "description": "Auto Git skill suite for intent-based git commits, release checks, and repository handoffs.",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.20.0",
@@ -20,11 +20,37 @@
     "pipeline:github:check": "node scripts/run-async-pipeline.js github check",
     "pipeline:github:generate": "node scripts/run-async-pipeline.js github generate",
     "pipeline:verify": "node scripts/run-async-pipeline.js run verify",
+    "release:check": "pnpm verify && npm pack --dry-run",
+    "release:doctor": "node scripts/release-doctor.mjs",
+    "release:pack": "npm pack --dry-run",
+    "release:publish": "node scripts/publish-npm.mjs",
     "skills:validate": "node scripts/validate-skills.js",
     "test": "node --test tests/*.test.js",
     "verify": "node scripts/validate-skills.js && node scripts/package-gists.js --check && node --test tests/*.test.js && node scripts/run-async-pipeline.js github check"
   },
+  "bin": {
+    "auto-git-finish": "./skills/auto-git/scripts/auto-git-finish.mjs",
+    "auto-git-gate": "./skills/auto-git/scripts/auto-git-gate.mjs",
+    "auto-git-ledger": "./skills/auto-git/scripts/auto-git-ledger.mjs",
+    "auto-git-release-doctor": "./scripts/release-doctor.mjs",
+    "auto-git-release-preflight": "./skills/auto-git/scripts/auto-git-release-preflight.mjs",
+    "auto-git-snapshot": "./skills/auto-git/scripts/auto-git-snapshot.mjs",
+    "auto-git-start": "./skills/auto-git/scripts/auto-git-start.mjs"
+  },
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "docs/gists",
+    "gist-manifest.json",
+    "gists",
+    "scripts",
+    "skills"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
-    "@async/pipeline": "0.2.0"
+    "@async/pipeline": "0.2.4"
   }
 }

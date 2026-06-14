@@ -225,6 +225,9 @@ are not a replacement for commit-by-intent judgment.
 - `scripts/auto-git-release-preflight.mjs --cwd "$PWD" [--require-verification]`
   - checks package version, changelog/release notes, dirty state, existing
     local tag conflicts, and optional remote release/tag state before tagging
+  - successful clean release verification may be reused after switching back to
+    main/default when `HEAD` is unchanged, even if the upstream branch context
+    changed the dirty fingerprint
   - emits `safeToTag`; it never creates, moves, pushes, publishes, or merges
 
 ## Global Async State
@@ -251,6 +254,12 @@ Reuse cached intent plans only when `HEAD`, upstream ref, staged state, and dirt
 When a repo has `.async/run.lock`, `examples/**/.async/run.lock`, or `.async/runs/`, treat Async Pipeline awareness as optional extra context. Parse lock files as `{ pid, startedAt }`, use `kill -0 <pid>` plus `ps` metadata when useful, and remove only confirmed stale locks with approval. If `.async/` is absent, proceed as normal Git automation.
 
 Package-manager sandbox hint: start with the repo-native plain command unless the snapshot execution plan says otherwise. If npm/pnpm fails because npm cannot write HOME cache/log/config paths in the sandbox, retry the same command with `NO_UPDATE_NOTIFIER=1 NPM_CONFIG_CACHE=/private/tmp/<repo>-npm-cache NPM_CONFIG_LOGS_DIR=/private/tmp/<repo>-npm-logs`. Preserve pnpm `minimumReleaseAge` and similar supply-chain settings.
+
+For npm packages, release completion should verify every public surface the repo
+uses: git tag, GitHub Release, npm package, GitHub Packages mirror when present,
+and the generated CI/publish workflow. Do not report a GitHub Release as a full
+npm release unless the package registry state was also checked or explicitly
+reported as blocked.
 
 Failure receipts should classify environment failures separately from code failures. Treat `listen EPERM 127.0.0.1`, npm cache/log write denial, Git index write denial, stale or malformed run locks, and hung quiet gates as environment diagnostics unless test output clearly shows an assertion or code failure.
 

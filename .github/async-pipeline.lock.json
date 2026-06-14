@@ -3,8 +3,8 @@
   "generator": "@async/pipeline",
   "config": "pipeline.ts",
   "workflow": ".github/workflows/async-pipeline.yml",
-  "hash": "sha256:80bbe0f3146b2e6341e063da26d15ab9fb9bac81668d3d775c5da0bf0b410078",
-  "generatedAt": "2026-06-12T23:34:35.533Z",
+  "hash": "sha256:e6b6c9017c15bda1ffd6bec73631641972729e68caf6857e542f9ef1c72293ab",
+  "generatedAt": "2026-06-14T02:10:16.477Z",
   "triggers": {
     "pull_request": {},
     "push": {
@@ -12,9 +12,43 @@
         "main"
       ]
     },
+    "release": {},
     "workflow_dispatch": {}
   },
   "jobs": [
+    {
+      "id": "publish",
+      "target": [
+        "publish-npm"
+      ],
+      "trigger": [
+        "release",
+        "manual"
+      ],
+      "env": {
+        "GITHUB_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "GITHUB_TOKEN"
+        },
+        "NODE_AUTH_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "NPM_TOKEN"
+        }
+      },
+      "environment": {
+        "name": "npm-publish",
+        "url": "https://www.npmjs.com/package/@async/auto-git"
+      },
+      "requires": {
+        "provenance": true
+      },
+      "github": {
+        "permissions": {
+          "packages": "write"
+        }
+      },
+      "if": "(github.event_name == 'release') || (github.event_name == 'workflow_dispatch')"
+    },
     {
       "id": "publish-gists",
       "target": [
@@ -33,6 +67,39 @@
       "if": "(github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')"
     },
     {
+      "id": "release-doctor",
+      "target": [
+        "release-doctor"
+      ],
+      "trigger": [
+        "manual"
+      ],
+      "env": {
+        "GITHUB_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "GITHUB_TOKEN"
+        },
+        "NODE_AUTH_TOKEN": {
+          "kind": "async-pipeline.env.secret",
+          "name": "NPM_TOKEN"
+        }
+      },
+      "environment": {
+        "name": "npm-publish",
+        "url": "https://www.npmjs.com/package/@async/auto-git"
+      },
+      "requires": {
+        "provenance": true
+      },
+      "github": {
+        "permissions": {
+          "contents": "write",
+          "packages": "write"
+        }
+      },
+      "if": "github.event_name == 'workflow_dispatch'"
+    },
+    {
       "id": "verify",
       "target": [
         "test",
@@ -41,10 +108,11 @@
       "trigger": [
         "pr",
         "main",
-        "manual"
+        "manual",
+        "release"
       ],
       "env": {},
-      "if": "(github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch')"
+      "if": "(github.event_name == 'pull_request') || (github.event_name == 'push' && (github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch') || (github.event_name == 'release')"
     }
   ],
   "packageManager": "pnpm",

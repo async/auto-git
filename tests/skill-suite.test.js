@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -26,6 +26,21 @@ test("manifest packages every skill into flat gist files", async () => {
       assert.ok(files.has("auto-git.script-auto-git-finish.mjs"), "auto-git packages finish helper");
       assert.ok(files.has("auto-git.script-auto-git-release-preflight.mjs"), "auto-git packages release preflight helper");
     }
+  }
+});
+
+test("package exposes publishable Auto Git CLI bins", async () => {
+  const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
+  assert.equal(packageJson.private, undefined);
+  assert.equal(packageJson.publishConfig.access, "public");
+  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.2.4");
+  assert.equal(packageJson.scripts["release:publish"], "node scripts/publish-npm.mjs");
+  assert.equal(packageJson.scripts["release:doctor"], "node scripts/release-doctor.mjs");
+
+  for (const [name, relativePath] of Object.entries(packageJson.bin)) {
+    const filePath = path.join(rootDir, relativePath);
+    const fileStat = await stat(filePath);
+    assert.notEqual(fileStat.mode & 0o111, 0, `${name} points at an executable file`);
   }
 });
 
@@ -541,6 +556,78 @@ test("auto-git release preflight blocks missing changelog and accepts clean rele
   }
 });
 
+test("auto-git release preflight reuses clean same-head verification after branch changes", async () => {
+  const repo = await createFixtureRepo("auto-git-release-preflight-reuse-");
+  const remote = await mkdtemp(path.join(tmpdir(), "auto-git-release-preflight-reuse-remote-"));
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-release-preflight-reuse-state-"));
+  try {
+    git(remote, ["init", "--bare"]);
+    git(repo, ["remote", "add", "origin", remote]);
+    await writeProjectFile(
+      repo,
+      "package.json",
+      JSON.stringify({ name: "fixture", version: "1.2.3", type: "module" }, null, 2) + "\n"
+    );
+    await writeProjectFile(repo, "CHANGELOG.md", "# Changelog\n\n## 1.2.3 - 2026-06-14\n\n- Release metadata.\n");
+    commit(repo, "release(fixture): prepare 1.2.3", "Codex Tester <codex@example.com>");
+    git(repo, ["push", "-u", "origin", "main"]);
+    git(repo, ["switch", "-c", "codex/release-fixture"]);
+    git(repo, ["push", "-u", "origin", "codex/release-fixture"]);
+
+    snapshot(repo, ["--write-state", "--record-verification", "pnpm verify", "--exit-code", "0"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+
+    git(repo, ["switch", "main"]);
+    const result = script("auto-git-release-preflight.mjs", repo, ["--require-verification", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.safeToTag, true);
+    assert.equal(payload.verification.matchType, "clean-same-head");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("release doctor reports healthy and repairable package states", async () => {
+  const healthy = releaseDoctorFacts();
+  let result = releaseDoctor(healthy);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  let payload = JSON.parse(result.stdout);
+  assert.equal(payload.healthy, true);
+
+  result = releaseDoctor(releaseDoctorFacts({ npm: { known: true, exists: false } }));
+  assert.equal(result.status, 1);
+  payload = JSON.parse(result.stdout);
+  assert.ok(payload.actions.some((action) => action.id === "publish-npm"));
+
+  result = releaseDoctor(releaseDoctorFacts({ githubPackage: { known: true, exists: false } }));
+  assert.equal(result.status, 1);
+  payload = JSON.parse(result.stdout);
+  assert.ok(payload.actions.some((action) => action.id === "publish-github"));
+
+  result = releaseDoctor(releaseDoctorFacts({ githubRelease: { known: true, exists: false } }));
+  assert.equal(result.status, 1);
+  payload = JSON.parse(result.stdout);
+  assert.ok(payload.actions.some((action) => action.id === "create-release"));
+});
+
+test("release doctor blocks mismatched or unknown release state", async () => {
+  let result = releaseDoctor(releaseDoctorFacts({ taggedPackage: { known: true, version: "1.2.2" } }));
+  assert.equal(result.status, 3);
+  let payload = JSON.parse(result.stdout);
+  assert.ok(payload.problems.some((problem) => problem.includes("tag v1.2.3 package version is 1.2.2")));
+
+  result = releaseDoctor(releaseDoctorFacts({ npm: { known: false, reason: "registry timeout" } }));
+  assert.equal(result.status, 2);
+  payload = JSON.parse(result.stdout);
+  assert.ok(payload.unknowns.some((unknown) => unknown.includes("registry timeout")));
+});
+
 test("auto-git snapshot derives PR readiness and records PR handoffs", async () => {
   const repo = await createFixtureRepo("auto-git-pr-ready-");
   const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-pr-ready-state-"));
@@ -698,6 +785,30 @@ function script(scriptName, cwd, args = [], env = {}) {
   return spawnSync(process.execPath, [scriptPath, "--cwd", cwd, ...args], {
     encoding: "utf8",
     env: { ...process.env, ...env }
+  });
+}
+
+function releaseDoctorFacts(overrides = {}) {
+  return {
+    package: { name: "@async/auto-git", version: "1.2.3", private: false },
+    head: "abc123",
+    tag: "v1.2.3",
+    localTag: { known: true, exists: true, commit: "abc123" },
+    remoteTag: { known: true, exists: true, commit: "abc123" },
+    npm: { known: true, exists: true, version: "1.2.3" },
+    githubPackage: { known: true, exists: true, version: "1.2.3" },
+    githubRelease: { known: true, exists: true },
+    workflow: { known: true, exists: true, latest: { conclusion: "success" } },
+    taggedPackage: { known: true, version: "1.2.3" },
+    ...overrides
+  };
+}
+
+function releaseDoctor(facts) {
+  return spawnSync(process.execPath, [path.join(rootDir, "scripts/release-doctor.mjs"), "--json"], {
+    cwd: rootDir,
+    encoding: "utf8",
+    env: { ...process.env, AUTO_GIT_RELEASE_DOCTOR_FACTS: JSON.stringify(facts) }
   });
 }
 
