@@ -35,7 +35,7 @@ test("package exposes publishable Auto Git CLI bins", async () => {
   const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
   assert.equal(packageJson.private, undefined);
   assert.equal(packageJson.publishConfig.access, "public");
-  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.4.4");
+  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.8.2");
   assert.equal(packageJson.devDependencies["@async/api-contract"], "0.1.0");
   assert.equal(packageJson.scripts["pipeline:publish:npm"], "async-pipeline publish npm --package .");
   assert.equal(packageJson.scripts["pipeline:publish:github:release"], "async-pipeline publish github release --package .");

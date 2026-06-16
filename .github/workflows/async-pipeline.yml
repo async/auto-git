@@ -43,17 +43,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -67,12 +64,24 @@ jobs:
           CI: true
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: ".async/pages"
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   pages-deploy:
     name: pages-deploy
@@ -88,7 +97,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   preview:
     name: preview
@@ -111,17 +120,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -134,6 +140,18 @@ jobs:
         env:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   publish:
     name: publish
@@ -158,20 +176,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Use current npm
         run: npm install -g npm@11.16.0
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -185,6 +200,18 @@ jobs:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   publish-gists:
     name: publish-gists
@@ -202,17 +229,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -225,6 +249,18 @@ jobs:
         env:
           CI: true
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   publish-github:
     name: publish-github
@@ -245,17 +281,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -268,6 +301,18 @@ jobs:
         env:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   release-doctor:
     name: release-doctor
@@ -288,17 +333,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -312,6 +354,18 @@ jobs:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   snapshot:
     name: snapshot
@@ -332,17 +386,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -355,6 +406,18 @@ jobs:
         env:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
 
   verify:
     name: verify
@@ -372,17 +435,14 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - name: Setup pnpm runtime
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-          package-manager-cache: false
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.20.0 --activate
+          version: 11.1.0
+          runtime: node@24
+          install: false
+          cache: true
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -394,3 +454,15 @@ jobs:
         run: pnpm async-pipeline run verify
         env:
           CI: true
+
+      - name: Explain async-pipeline run
+        if: failure()
+        run: pnpm async-pipeline explain --run latest || true
+
+      - name: Upload async-pipeline run evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: async-pipeline-${{ github.job }}-runs
+          path: .async/runs
+          if-no-files-found: ignore
