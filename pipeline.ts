@@ -28,14 +28,15 @@ export default definePipeline({
     manual: trigger.manual()
   },
   sync: {
-    github: true,
+    github: {
+      packagePreviews: true,
+      pages: { target: "docs.site" }
+    },
     tasks: {
       prefix: "pipeline",
       runners: ["package"],
       targets: [{ package: "@async/auto-git" }],
       jobs: [
-        "pages",
-        "preview",
         "publish",
         "publish-gists",
         "publish-github",
@@ -50,6 +51,7 @@ export default definePipeline({
         "github:check": "github check",
         "github:generate": "github generate",
         "pack": "run-task pack",
+        "pages": "run-task docs.site",
         "publish:github:main": "publish github main --package .",
         "publish:github:pr": "publish github pr --package .",
         "publish:github:release": "publish github release --package .",
@@ -158,13 +160,6 @@ export default definePipeline({
       cache: false,
       run: sh`npm --cache ./.async/npm-cache pack --dry-run`
     }),
-    preview: task({
-      description: "Same-repo PRs publish an immutable 0.0.0-pr.<n>.sha.<sha> preview to GitHub Packages and update one install comment. Fork PRs skip.",
-      dependsOn: ["pack"],
-      inputs: ["package", "generated"],
-      cache: false,
-      run: sh`pnpm async-pipeline publish github pr --package .`
-    }),
     snapshot: task({
       description: "Pushes to main publish an immutable 0.0.0-main.sha.<sha> snapshot to GitHub Packages and move the main dist-tag while the commit is still the branch head.",
       dependsOn: ["pack"],
@@ -215,29 +210,6 @@ export default definePipeline({
     verify: job({
       target: "pack",
       trigger: ["pr", "main", "release", "manual"]
-    }),
-    pages: job({
-      target: "docs.site",
-      trigger: ["pr", "main", "manual"],
-      github: {
-        pages: {
-          build: { kind: "static", path: ".async/pages" }
-        }
-      }
-    }),
-    preview: job({
-      target: "preview",
-      trigger: ["pr"],
-      env: {
-        GITHUB_TOKEN: env.secret("GITHUB_TOKEN")
-      },
-      github: {
-        permissions: {
-          issues: "write",
-          packages: "write",
-          pullRequests: "write"
-        }
-      }
     }),
     snapshot: job({
       target: "snapshot",

@@ -35,7 +35,7 @@ test("package exposes publishable Auto Git CLI bins", async () => {
   const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
   assert.equal(packageJson.private, undefined);
   assert.equal(packageJson.publishConfig.access, "public");
-  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.8.4");
+  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.8.8");
   assert.equal(packageJson.devDependencies["@async/api-contract"], "0.1.0");
   assert.equal(packageJson.scripts["pipeline:publish:npm"], "async-pipeline publish npm --package .");
   assert.equal(packageJson.scripts["pipeline:publish:github:release"], "async-pipeline publish github release --package .");
@@ -72,15 +72,17 @@ test("pipeline sync owns lifecycle scripts, workflow dispatch, pages, and API su
 
   assert.equal(packageJson.scripts["pipeline:sync:check"], "async-pipeline sync check");
   assert.equal(packageJson.scripts["pipeline:api-surface"], "async-pipeline run-task api-surface");
-  assert.equal(packageJson.scripts["pipeline:pages"], "async-pipeline run pages");
-  assert.equal(packageJson.scripts["pipeline:preview"], "async-pipeline run preview");
+  assert.equal(packageJson.scripts["pipeline:pages"], "async-pipeline run-task docs.site");
+  assert.equal(packageJson.scripts["pipeline:preview"], undefined);
   assert.equal(packageJson.scripts["pipeline:snapshot"], "async-pipeline run snapshot");
   assert.equal(packageJson.scripts["pipeline:publish-gists"], "async-pipeline run publish-gists");
 
   assert.match(workflow, /type: choice/);
   assert.match(workflow, /- "publish-gists"/);
   assert.match(workflow, /pages-deploy/);
-  assert.match(workflow, /pnpm async-pipeline run preview/);
+  assert.match(workflow, /name: package-preview/);
+  assert.match(workflow, /pnpm async-pipeline publish github pr --package \. --registry https:\/\/npm\.pkg\.github\.com/);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline run preview/);
   assert.match(workflow, /pnpm async-pipeline run snapshot/);
   assert.match(workflow, /contents: write/);
 

@@ -23,8 +23,7 @@
     "pipeline:github:check": "async-pipeline github check",
     "pipeline:github:generate": "async-pipeline github generate",
     "pipeline:pack": "async-pipeline run-task pack",
-    "pipeline:pages": "async-pipeline run pages",
-    "pipeline:preview": "async-pipeline run preview",
+    "pipeline:pages": "async-pipeline run-task docs.site",
     "pipeline:publish": "async-pipeline run publish",
     "pipeline:publish-gists": "async-pipeline run publish-gists",
     "pipeline:publish-github": "async-pipeline run publish-github",
@@ -68,6 +67,6 @@
   },
   "devDependencies": {
     "@async/api-contract": "0.1.0",
-    "@async/pipeline": "0.8.4"
+    "@async/pipeline": "0.8.8"
   }
 }
