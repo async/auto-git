@@ -35,7 +35,7 @@ test("package exposes publishable Auto Git CLI bins", async () => {
   const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
   assert.equal(packageJson.private, undefined);
   assert.equal(packageJson.publishConfig.access, "public");
-  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.8.9");
+  assert.equal(packageJson.devDependencies["@async/pipeline"], "0.9.1");
   assert.equal(packageJson.devDependencies["@async/api-contract"], "0.1.0");
   assert.equal(packageJson.scripts["pipeline:publish:npm"], "async-pipeline publish npm --package .");
   assert.equal(packageJson.scripts["pipeline:publish:github:release"], "async-pipeline publish github release --package .");
@@ -81,9 +81,24 @@ test("pipeline sync owns lifecycle scripts, workflow dispatch, pages, and API su
   assert.match(workflow, /- "publish-gists"/);
   assert.match(workflow, /pages-deploy/);
   assert.match(workflow, /name: package-preview/);
-  assert.match(workflow, /pnpm async-pipeline publish github pr --package \. --registry https:\/\/npm\.pkg\.github\.com/);
+  assert.match(workflow, /uses: async\/actions\/run@v0/);
+  assert.match(workflow, /uses: async\/actions\/preview@v0/);
+  assert.match(workflow, /uses: async\/actions\/publish@v0/);
+  assert.match(workflow, /uses: async\/actions\/pages@v0/);
+  assert.match(workflow, /mode: pr/);
+  assert.match(workflow, /mode: main/);
+  assert.match(workflow, /mode: github-release/);
+  assert.match(workflow, /mode: github-packages/);
+  assert.match(workflow, /mode: npm/);
+  assert.match(workflow, /mode: doctor/);
+  assert.match(workflow, /pnpm async-pipeline run-task pack/);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline publish github pr --package \. --registry https:\/\/npm\.pkg\.github\.com/);
   assert.doesNotMatch(workflow, /pnpm async-pipeline run preview/);
-  assert.match(workflow, /pnpm async-pipeline run snapshot/);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline run snapshot/);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline publish github main --package \./);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline publish github release --package \./);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline publish npm --package \./);
+  assert.doesNotMatch(workflow, /pnpm async-pipeline release doctor --package \./);
   assert.match(workflow, /contents: write/);
 
   assert.ok(taskLock.commands.some((command) => command.name === "pipeline:publish:github:pr"));

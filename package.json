@@ -67,6 +67,6 @@
   },
   "devDependencies": {
     "@async/api-contract": "0.1.0",
-    "@async/pipeline": "0.8.9"
+    "@async/pipeline": "0.9.1"
   }
 }
