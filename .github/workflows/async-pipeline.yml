@@ -55,14 +55,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Use current npm
         run: npm install -g npm@11.16.0
@@ -108,14 +111,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -160,14 +166,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -212,14 +221,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -265,14 +277,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -314,14 +329,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -362,14 +380,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -441,14 +462,17 @@ jobs:
           restore-keys: |
             async-pipeline-${{ runner.os }}-
 
-      - name: Setup pnpm runtime
-        uses: pnpm/setup@cf03a9b516e09bc5a90f041fc26fc930c9dc631b # v1.0.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          version: 10.20.0
-          runtime: node@24
-          install: false
-          cache: true
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.20.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
