@@ -12,6 +12,14 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import {
+  acquireOrHeartbeatAutoGitRunLease,
+  autoGitLeaseStatusForRun,
+  completeAutoGitRunLease,
+  displayLockPath,
+  heartbeatAutoGitRunLease,
+  listAutoGitRunLeases
+} from "./auto-git-locks.mjs";
 
 const SCHEMA_VERSION = 3;
 const DEFAULT_LEASE_TTL_MS = 45 * 60 * 1000;
@@ -645,6 +653,18 @@ function commandFailure(command) {
   return command.ok ? undefined : { status: command.status, stderr: command.stderr.split("\n").slice(0, 3).join("\n") };
 }
 
+function autoGitRunLeaseSummary(repoHash) {
+  return listAutoGitRunLeases(repoHash, nowDate()).map((entry) => ({
+    path: displayLockPath(entry.path),
+    status: entry.status,
+    name: entry.record?.name,
+    updatedAt: entry.record?.updatedAt,
+    expiresAt: entry.record?.expiresAt,
+    heartbeatAt: entry.record?.lease?.heartbeatAt,
+    error: entry.error
+  }));
+}
+
 function buildSnapshot(cwd) {
   const requestedCwd = resolve(cwd);
   const rootCommand = runGit(requestedCwd, ["rev-parse", "--show-toplevel"]);
@@ -653,6 +673,7 @@ function buildSnapshot(cwd) {
   }
 
   const repoRoot = rootCommand.stdout;
+  const repoHash = sha256(repoRoot, 24);
   const gitDirCommand = runGit(repoRoot, ["rev-parse", "--git-dir"]);
   const gitDir = gitDirPath(repoRoot, gitDirCommand.stdout);
   const gitIndexLock = classifyGitIndexLock(repoRoot, gitDir);
@@ -710,7 +731,7 @@ function buildSnapshot(cwd) {
     generatedAt: nowDate().toISOString(),
     repo: {
       root: repoRoot,
-      hash: sha256(repoRoot, 24),
+      hash: repoHash,
       slug: repoSlug(repoRoot),
       gitDir: gitDir ? relative(repoRoot, gitDir) || ".git" : undefined
     },
@@ -741,7 +762,8 @@ function buildSnapshot(cwd) {
     locks: {
       gitIndex: gitIndexLock,
       asyncRun: rootAsyncRunLock,
-      asyncRunLocks
+      asyncRunLocks,
+      autoGitRunLeases: autoGitRunLeaseSummary(repoHash)
     },
     worktrees: worktrees.ok ? lines(worktrees.stdout) : [],
     packageManager: {
@@ -809,6 +831,9 @@ function normalizeRun(run) {
     worktreePath: typeof run.worktreePath === "string" ? run.worktreePath : undefined,
     baseBranch: typeof run.baseBranch === "string" ? run.baseBranch : undefined,
     claimedAt: typeof run.claimedAt === "string" ? run.claimedAt : undefined,
+    repoHash: typeof run.repoHash === "string" ? run.repoHash : undefined,
+    leaseId: typeof run.leaseId === "string" ? run.leaseId : undefined,
+    leasePath: typeof run.leasePath === "string" ? run.leasePath : undefined,
     lastHeartbeatAt: typeof run.lastHeartbeatAt === "string" ? run.lastHeartbeatAt : undefined,
     leaseExpiresAt: typeof run.leaseExpiresAt === "string" ? run.leaseExpiresAt : undefined,
     completedAt: typeof run.completedAt === "string" ? run.completedAt : undefined,
@@ -856,19 +881,48 @@ function upsertRun(runs, run) {
   return nextRuns;
 }
 
-function currentRunBasis(snapshot, options, nowIso) {
+function currentRunBasis(snapshot, options, nowIso, leaseInfo) {
   const baseBranch = options.baseBranch ?? defaultBaseBranch(snapshot);
   const commits = commitsAheadOfBase(snapshot.repo.root, baseBranch);
-  return {
+  const basis = {
+    repoHash: snapshot.repo.hash,
     branch: snapshot.topology.branch,
     worktreePath: snapshot.repo.root,
     baseBranch,
-    lastHeartbeatAt: nowIso,
-    leaseExpiresAt: isoFromMs(nowDate().getTime() + options.leaseTtlMs),
+    lastHeartbeatAt: leaseInfo?.lastHeartbeatAt ?? nowIso,
+    leaseExpiresAt: leaseInfo?.leaseExpiresAt ?? isoFromMs(nowDate().getTime() + options.leaseTtlMs),
     head: snapshot.topology.head,
     dirtyFingerprint: snapshot.dirty.fingerprint,
     stagedFingerprint: snapshot.dirty.stagedFingerprint,
     commits
+  };
+  if (leaseInfo) {
+    basis.leaseId = leaseInfo.leaseId;
+    basis.leasePath = leaseInfo.leasePath;
+  }
+  return basis;
+}
+
+function runLeaseReason(id, taskSlug) {
+  return `Auto Git run ${id}${taskSlug ? ` for ${taskSlug}` : ""}.`;
+}
+
+function leaseBasis(snapshot, options, id, existing, updatedAt, mode) {
+  const taskSlug = existing?.taskSlug;
+  const common = {
+    repoHash: snapshot.repo.hash,
+    runId: id,
+    leaseId: existing?.leaseId,
+    ttlMs: options.leaseTtlMs,
+    now: new Date(updatedAt),
+    reason: runLeaseReason(id, taskSlug)
+  };
+  const lease = mode === "heartbeat" ? heartbeatAutoGitRunLease(common) : acquireOrHeartbeatAutoGitRunLease(common);
+  return {
+    leaseId: lease.record.lease?.leaseId,
+    leasePath: displayLockPath(lease.path),
+    lastHeartbeatAt: lease.record.lease?.heartbeatAt,
+    leaseExpiresAt: lease.record.expiresAt
   };
 }
 
@@ -900,15 +954,17 @@ function mutateLedger(snapshot, ledger, options, updatedAt) {
     const id = currentRunId || randomUUID();
     currentRunId = id;
     const existing = runs.find((run) => run.id === id);
+    const taskSlug = sanitizeTaskSlug(options.claimRun);
+    const leaseInfo = leaseBasis(snapshot, options, id, existing ? { ...existing, taskSlug } : { taskSlug }, updatedAt, "claim");
     const run = {
       ...(existing ?? {}),
       id,
-      taskSlug: sanitizeTaskSlug(options.claimRun),
+      taskSlug,
       intent: classifyIntent(options.claimRun, options.intent),
       lifecycle: classifyLifecycle(options.claimRun, options.lifecycle),
       status: "active",
       claimedAt: existing?.claimedAt ?? updatedAt,
-      ...currentRunBasis(snapshot, options, updatedAt)
+      ...currentRunBasis(snapshot, options, updatedAt, leaseInfo)
     };
     runs = upsertRun(runs, run);
     changed = true;
@@ -919,10 +975,11 @@ function mutateLedger(snapshot, ledger, options, updatedAt) {
     currentRunId = id;
     const existing = runs.find((run) => run.id === id);
     if (!existing) throw new Error(`Cannot heartbeat unknown Auto Git run: ${id}`);
+    const leaseInfo = leaseBasis(snapshot, options, id, existing, updatedAt, "heartbeat");
     runs = upsertRun(runs, {
       ...existing,
       status: "active",
-      ...currentRunBasis(snapshot, options, updatedAt)
+      ...currentRunBasis(snapshot, options, updatedAt, leaseInfo)
     });
     changed = true;
   }
@@ -932,6 +989,13 @@ function mutateLedger(snapshot, ledger, options, updatedAt) {
     currentRunId = id;
     const existing = runs.find((run) => run.id === id);
     if (!existing) throw new Error(`Cannot complete unknown Auto Git run: ${id}`);
+    completeAutoGitRunLease({
+      repoHash: snapshot.repo.hash,
+      runId: id,
+      leaseId: existing.leaseId,
+      now: new Date(updatedAt),
+      summary: `Auto Git run ${id} completed.`
+    });
     runs = upsertRun(runs, {
       ...existing,
       status: "completed",
@@ -1046,8 +1110,12 @@ function activeAutoGitProcesses(repoDir) {
 
 function runState(snapshot, run, nowMs, hasActiveProcesses) {
   if (run.status === "completed") return "completed";
-  const expiresAt = Date.parse(run.leaseExpiresAt ?? "");
-  if (Number.isFinite(expiresAt) && expiresAt >= nowMs) return "active";
+  const leaseStatus = autoGitLeaseStatusForRun(run, new Date(nowMs));
+  if (leaseStatus?.status === "active") return "active";
+  if (!leaseStatus) {
+    const expiresAt = Date.parse(run.leaseExpiresAt ?? "");
+    if (Number.isFinite(expiresAt) && expiresAt >= nowMs) return "active";
+  }
   if (run.pr && (run.pr.status === "open" || run.pr.status === "draft")) return "stale";
   const branchStillExists = branchExists(snapshot.repo.root, run.branch);
   const worktreeStillExists = Boolean(run.worktreePath && existsSync(run.worktreePath));
@@ -1066,6 +1134,7 @@ function publicRun(run, state) {
     worktreePath: run.worktreePath,
     baseBranch: run.baseBranch,
     claimedAt: run.claimedAt,
+    leasePath: run.leasePath,
     lastHeartbeatAt: run.lastHeartbeatAt,
     leaseExpiresAt: run.leaseExpiresAt,
     completedAt: run.completedAt,
@@ -1231,6 +1300,7 @@ function writeState(snapshot, options) {
       ledgerChanged = ledgerChanged || verificationLedger.changed;
     }
 
+    snapshot.locks.autoGitRunLeases = autoGitRunLeaseSummary(snapshot.repo.hash);
     attachCoordination(snapshot, ledgerResult.ledger, repoDir, ledgerResult.currentRunId);
     if (ledgerChanged) {
       writeJson(ledgerPath(repoDir), ledgerResult.ledger);

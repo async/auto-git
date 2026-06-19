@@ -144,6 +144,7 @@ function buildReceipt(payload, options) {
     workflowMode: snapshot.workflowMode,
     lifecycle: run?.lifecycle,
     intent: run?.intent,
+    leasePath: run?.leasePath,
     occupancy: {
       status: snapshot.occupancy?.status,
       activeRunIds: (snapshot.occupancy?.activeRuns ?? []).map((entry) => entry.id),

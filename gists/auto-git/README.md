@@ -23,6 +23,7 @@ auto-git/
     auto-git-finish.mjs
     auto-git-gate.mjs
     auto-git-ledger.mjs
+    auto-git-locks.mjs
     auto-git-release-preflight.mjs
     auto-git-snapshot.mjs
     auto-git-start.mjs
@@ -39,6 +40,7 @@ Gist file mapping:
 | `auto-git.script-auto-git-finish.mjs` | `scripts/auto-git-finish.mjs` |
 | `auto-git.script-auto-git-gate.mjs` | `scripts/auto-git-gate.mjs` |
 | `auto-git.script-auto-git-ledger.mjs` | `scripts/auto-git-ledger.mjs` |
+| `auto-git.script-auto-git-locks.mjs` | `scripts/auto-git-locks.mjs` |
 | `auto-git.script-auto-git-release-preflight.mjs` | `scripts/auto-git-release-preflight.mjs` |
 | `auto-git.script-auto-git-snapshot.mjs` | `scripts/auto-git-snapshot.mjs` |
 | `auto-git.script-auto-git-start.mjs` | `scripts/auto-git-start.mjs` |
@@ -48,7 +50,7 @@ Gist file mapping:
 - Detects repo root, branch, upstream, default branch, dirty state, and worktree topology before staging.
 - Uses a compact snapshot helper to detect Git index write capability, run locks, package-manager hints, ledger occupancy, PR handoffs, PR readiness, and the recommended verification profile before expensive commands.
 - Supports two workflows: local review for single-chat code review and coordinated branch for multi-chat conflicts, PR handoffs, experiments, and fanouts.
-- Tracks cooperative leases and PR handoffs under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json` without storing raw diffs, prompts, full command output, environment dumps, or secrets.
+- Tracks cooperative run state and PR handoffs under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`, with live leases under `~/.async/locks/auto-git/`, without storing raw diffs, prompts, full command output, environment dumps, or secrets.
 - Commits by change intent instead of making one vague bulk commit.
 - Reads the code and diffs when there are many unstaged changes, then builds the best commit split.
 - Optionally routes large or unclear worktrees to `git-intent-audit` before committing.
@@ -290,7 +292,10 @@ skill's `scripts/*.mjs` paths directly.
 
 The snapshot output is compact JSON. Advisory state writes fail soft with
 `stateWrite.ok=false`, so an unwritable `~/.async/auto-git` directory does not
-block the first move.
+block the first move. Live run leases use Async-compatible lock records under
+`~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completing a run
+removes the live lease and keeps a completion receipt under
+`~/.async/locks/auto-git/history/`.
 
 For cooperative run leases and PR handoffs:
 

@@ -39,7 +39,8 @@ an already-established Auto Git mode for that action.
    directory as `scripts/auto-git-snapshot.mjs --cwd "$PWD" --write-state`.
    When working inside this source checkout, the equivalent source path is
    `skills/auto-git/scripts/auto-git-snapshot.mjs`. The helper writes advisory
-   metadata under `~/.async/auto-git/v1/` only when `--write-state` is passed.
+   metadata under `~/.async/auto-git/v1/` and live run leases under
+   `~/.async/locks/auto-git/` only when `--write-state` is passed.
    State writes must fail soft as `stateWrite: { ok: false, reason }`; they
    must not fail the whole snapshot. Auto Git state must not store raw diffs,
    file contents, environment values, tokens, npmrc content, or full command
@@ -199,6 +200,10 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
     recommended execution plan
   - tracks cooperative Auto Git run leases in
     `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`
+  - writes shared Async-compatible runtime leases under
+    `~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completing
+    a run removes the live lease and keeps a completion receipt under
+    `~/.async/locks/auto-git/history/`
   - supports `--claim-run <task>`, `--intent <name>`,
     `--lifecycle <checkpoint|sync|land|fanout>`,
     `--heartbeat-run <run-id>`, `--complete-run <run-id>`, and
@@ -239,7 +244,7 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
 
 ## Global Async State
 
-Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection and to coordinate across chats. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, recovery hints, run ids, task slugs, lifecycle modes, coordinated intents, branch names, worktree paths, base branches, lease expirations, verification keys, and PR URLs/statuses.
+Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection and to coordinate across chats. Live runtime leases use Async-compatible lock records under `~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completion removes the live lease and writes a receipt under `~/.async/locks/auto-git/history/`. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, recovery hints, run ids, task slugs, lifecycle modes, coordinated intents, branch names, worktree paths, base branches, lease expirations, lease paths, verification keys, and PR URLs/statuses.
 
 The ledger is cooperative. Auto Git can reliably detect stale or inactive chats
 only when those chats used Auto Git and wrote ledger state. A run is active

@@ -53,8 +53,11 @@ commit by intent in the current checkout so code can be reviewed as it evolves.
 Coordinated branch is the multi-chat flow: when work may collide, or the user
 asks for branch/PR/fanout/experiment/get-this-in/ship, Auto Git keeps trunk as
 the coordination base and uses isolated branches/worktrees plus safe ledger
-metadata under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`. Future
-chats can see active leases, stale work, verification state, and PR handoffs.
+metadata under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`. Live run
+leases also use Async lock records under
+`~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`, with completion
+receipts under `~/.async/locks/auto-git/history/`. Future chats can see active
+leases, stale work, verification state, and PR handoffs.
 Auto Git never merges merely because a PR is ready; merge stays tied to
 explicit `land` or later merge intent.
 

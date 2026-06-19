@@ -92,6 +92,7 @@ function publicRun(run, statusById) {
     worktreePath: run.worktreePath,
     baseBranch: run.baseBranch,
     claimedAt: run.claimedAt,
+    leasePath: run.leasePath,
     lastHeartbeatAt: run.lastHeartbeatAt,
     leaseExpiresAt: run.leaseExpiresAt,
     completedAt: run.completedAt,

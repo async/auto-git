@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm, writeFile, mkdir, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -21,6 +21,7 @@ test("manifest packages every skill into flat gist files", async () => {
     if (skill.name === "auto-git") {
       assert.ok(files.has("auto-git.script-auto-git-snapshot.mjs"), "auto-git packages snapshot helper");
       assert.ok(files.has("auto-git.script-auto-git-gate.mjs"), "auto-git packages gate helper");
+      assert.ok(files.has("auto-git.script-auto-git-locks.mjs"), "auto-git packages lock helper");
       assert.ok(files.has("auto-git.script-auto-git-start.mjs"), "auto-git packages start helper");
       assert.ok(files.has("auto-git.script-auto-git-ledger.mjs"), "auto-git packages ledger helper");
       assert.ok(files.has("auto-git.script-auto-git-finish.mjs"), "auto-git packages finish helper");
@@ -345,40 +346,54 @@ test("auto-git snapshot promotes async-pipeline hints into an execution plan", a
 test("auto-git snapshot records lease lifecycle and stale occupancy", async () => {
   const repo = await createFixtureRepo("auto-git-lease-");
   const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-lease-state-"));
+  const lockHome = await mkdtemp(path.join(tmpdir(), "auto-git-lease-locks-"));
   try {
     let result = snapshot(
       repo,
       ["--write-state", "--claim-run", "get this in now", "--run-id", "run-1", "--lease-ttl-ms", "1000"],
-      { AUTO_GIT_STATE_HOME: stateHome, AUTO_GIT_NOW: "2026-06-13T00:00:00.000Z" }
+      { AUTO_GIT_STATE_HOME: stateHome, AUTO_GIT_LOCK_HOME: lockHome, AUTO_GIT_NOW: "2026-06-13T00:00:00.000Z" }
     );
     assert.equal(result.snapshot.occupancy.status, "self");
     assert.equal(result.snapshot.occupancy.activeRuns[0].id, "run-1");
     assert.equal(result.snapshot.occupancy.activeRuns[0].intent, "merge");
+    assert.match(result.snapshot.occupancy.activeRuns[0].leasePath, /auto-git\/repos\/.+\/runs\/run-1\.lease\.json$/);
+    assert.equal(result.snapshot.locks.autoGitRunLeases.length, 1);
+    assert.equal(result.snapshot.locks.autoGitRunLeases[0].status, "active");
 
     result = snapshot(repo, ["--write-state", "--heartbeat-run", "run-1", "--lease-ttl-ms", "1000"], {
       AUTO_GIT_STATE_HOME: stateHome,
+      AUTO_GIT_LOCK_HOME: lockHome,
       AUTO_GIT_NOW: "2026-06-13T00:00:00.500Z"
     });
     assert.equal(result.snapshot.occupancy.status, "self");
+    assert.equal(result.snapshot.occupancy.activeRuns[0].lastHeartbeatAt, "2026-06-13T00:00:00.500Z");
     assert.equal(result.snapshot.occupancy.activeRuns[0].leaseExpiresAt, "2026-06-13T00:00:01.500Z");
+    assert.equal(result.snapshot.locks.autoGitRunLeases[0].heartbeatAt, "2026-06-13T00:00:00.500Z");
 
     result = snapshot(repo, [], {
       AUTO_GIT_STATE_HOME: stateHome,
+      AUTO_GIT_LOCK_HOME: lockHome,
       AUTO_GIT_NOW: "2026-06-13T00:00:03.000Z"
     });
     assert.equal(result.snapshot.occupancy.status, "abandoned-candidate");
     assert.equal(result.snapshot.occupancy.staleRuns[0].status, "abandoned-candidate");
+    assert.equal(result.snapshot.locks.autoGitRunLeases[0].status, "expired");
 
     result = snapshot(repo, ["--write-state", "--complete-run", "run-1"], {
       AUTO_GIT_STATE_HOME: stateHome,
+      AUTO_GIT_LOCK_HOME: lockHome,
       AUTO_GIT_NOW: "2026-06-13T00:00:04.000Z"
     });
     assert.equal(result.snapshot.occupancy.status, "free");
     assert.equal(result.snapshot.occupancy.activeRuns.length, 0);
     assert.equal(result.snapshot.occupancy.staleRuns.length, 0);
+    assert.equal(result.snapshot.locks.autoGitRunLeases.length, 0);
+    const historyFiles = await readdir(path.join(lockHome, "auto-git", "history"), { recursive: true });
+    assert.ok(historyFiles.some((entry) => entry.endsWith(".complete.json")));
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(stateHome, { recursive: true, force: true });
+    await rm(lockHome, { recursive: true, force: true });
   }
 });
 
@@ -872,7 +887,7 @@ function snapshot(cwd, args = [], env = {}) {
   const script = path.join(rootDir, "skills/auto-git/scripts/auto-git-snapshot.mjs");
   const result = spawnSync(process.execPath, [script, "--cwd", cwd, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ...env }
+    env: testEnv(env)
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return JSON.parse(result.stdout);
@@ -882,7 +897,7 @@ function gate(cwd, args = [], env = {}) {
   const script = path.join(rootDir, "skills/auto-git/scripts/auto-git-gate.mjs");
   return spawnSync(process.execPath, [script, "--cwd", cwd, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ...env }
+    env: testEnv(env)
   });
 }
 
@@ -890,8 +905,16 @@ function script(scriptName, cwd, args = [], env = {}) {
   const scriptPath = path.join(rootDir, "skills/auto-git/scripts", scriptName);
   return spawnSync(process.execPath, [scriptPath, "--cwd", cwd, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ...env }
+    env: testEnv(env)
   });
+}
+
+function testEnv(env = {}) {
+  const merged = { ...process.env, ...env };
+  if (!Object.hasOwn(env, "AUTO_GIT_LOCK_HOME")) {
+    merged.AUTO_GIT_LOCK_HOME = path.join(tmpdir(), "auto-git-test-locks");
+  }
+  return merged;
 }
 
 function releaseDoctorFacts(overrides = {}) {
