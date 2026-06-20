@@ -248,6 +248,13 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
   - prints active runs, stale runs, completed runs, PR handoffs, branches,
     worktrees, leases, decision receipts, and verification state from safe
     ledger metadata
+- `auto-git ledger record-thread --cwd "$PWD" --run-id "<id>" --action <create|send|read|handoff> [--thread-id "<id>"] [--source-session "<id>"] [--target "<ADR or work item>"] [--repo "<owner/repo>"] [--package "<package>"] [--branch "<branch>"] [--worktree "<path or label>"] [--pr-url "<url>"] [--pr-number "<n>"] [--release-check <not-in-scope|passed|failed|blocked|deferred|unknown>] [--next-adr "<label>"]`
+  - records sanitized follow-up thread handoff metadata on a run without
+    storing prompts, transcripts, raw command output, environment values,
+    secrets, or local absolute worktree paths
+  - stores only thread ids, action type, source session id when available,
+    target work label, repository/package labels, branch, worktree class or
+    basename, PR reference, release-check status, and next ADR label
   - never deletes ledger entries
 - `auto-git finish --cwd "$PWD" --run-id "<id>" [--complete]`
   - checks dirty state, unresolved index state, HEAD/upstream, active run
@@ -261,7 +268,9 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
   - blocks release/yolo completion until release-preflight evidence is recorded
     and release execution is recorded or explicitly deferred with
     `--defer-release`
-  - blocks follow-up-thread completion until thread handoff evidence exists
+  - blocks follow-up-thread completion until thread handoff evidence exists,
+    and preserves sanitized thread handoff metadata when completion writes the
+    final ledger receipt
   - preserves the completed branch/head in the ledger even when completion is
     run from main/default after cleanup
   - records PR metadata when asked and completes the run only when safe
@@ -277,7 +286,7 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
 
 ## Global Async State
 
-Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection and to coordinate across chats. Live runtime leases use Async-compatible lock records under `~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completion removes the live lease and writes a receipt under `~/.async/locks/auto-git/history/`. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, recovery hints, run ids, task slugs, lifecycle modes, coordinated intents, branch names, worktree paths, base branches, lease expirations, lease paths, verification keys, release-preflight evidence, release deferral state, thread handoff ids/status, and PR URLs/statuses.
+Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection and to coordinate across chats. Live runtime leases use Async-compatible lock records under `~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completion removes the live lease and writes a receipt under `~/.async/locks/auto-git/history/`. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, recovery hints, run ids, task slugs, lifecycle modes, coordinated intents, branch names, worktree paths, base branches, lease expirations, lease paths, verification keys, release-preflight evidence, release deferral state, sanitized thread handoff action/source/thread/target/repo/package/branch/worktree-class/PR/release-check/next-ADR metadata, and PR URLs/statuses.
 
 The ledger is cooperative. Auto Git can reliably detect stale or inactive chats
 only when those chats used Auto Git and wrote ledger state. A run is active

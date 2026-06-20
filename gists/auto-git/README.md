@@ -51,7 +51,7 @@ Gist file mapping:
 - Uses a compact snapshot helper to detect Git index write capability, run locks, package-manager hints, ledger occupancy, PR handoffs, PR readiness, and the recommended verification profile before expensive commands.
 - Writes a sanitized start decision receipt on claimed runs, including the normalized route, selected workflow, required gates, branch/worktree context, release-preflight requirement, and follow-up thread handoff requirement without storing raw transcript text.
 - Supports two workflows: local review for single-chat code review and coordinated branch for multi-chat conflicts, PR handoffs, experiments, and fanouts.
-- Tracks cooperative run state and PR handoffs under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`, with live leases under `~/.async/locks/auto-git/`, without storing raw diffs, prompts, full command output, environment dumps, or secrets.
+- Tracks cooperative run state, PR handoffs, and sanitized thread handoff metadata under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`, with live leases under `~/.async/locks/auto-git/`, without storing raw diffs, prompts, transcripts, full command output, environment dumps, secrets, or local absolute worktree paths in handoff records.
 - Commits by change intent instead of making one vague bulk commit.
 - Reads the code and diffs when there are many unstaged changes, then builds the best commit split.
 - Optionally routes large or unclear worktrees to `git-intent-audit` before committing.
@@ -331,6 +331,7 @@ Controller helpers:
 ```sh
 auto-git start --cwd "$PWD" --task "fix this"
 auto-git ledger list --cwd "$PWD"
+auto-git ledger record-thread --cwd "$PWD" --run-id "<id>" --action create --thread-id "<thread-id>" --target "ADR 4" --repo "async/auto-git" --package "@async/auto-git" --next-adr "ADR 4"
 auto-git finish --cwd "$PWD" --run-id "<id>" --complete
 auto-git release-preflight --cwd "$PWD" --run-id "<id>" --require-verification
 ```
@@ -343,13 +344,21 @@ explicit deferral, follow-up thread handoff, return to main/default, and the
 final ledger update. Blockers are short command-class hints and do not include
 raw diffs, command output, transcripts, or secret-looking values.
 
+Use `auto-git ledger record-thread` when a coordinated follow-up route creates,
+sends to, reads, or hands off another thread. The record keeps only sanitized
+coordination metadata: source session id when available, thread id, action,
+target ADR or work item, repository/package labels, branch, worktree class or
+basename, PR reference, release-check status, and the next ADR label. It rejects
+or excludes transcript-like and secret-looking values.
+
 For release and yolo routes, `auto-git release-preflight` records successful
 preflight evidence to the active or requested run using safe metadata only.
 If release execution is intentionally deferred, finish requires an explicit
 `--defer-release`.
 
 Completion from main/default still preserves the completed branch/head in the
-ledger so later chats can find the exact handoff.
+ledger so later chats can find the exact handoff. When thread handoff evidence
+is present, finish preserves that sanitized metadata through completion.
 
 For long or environment-sensitive gates, use:
 

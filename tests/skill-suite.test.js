@@ -711,6 +711,214 @@ test("auto-git finish blocks follow-up routes without thread evidence", async ()
   }
 });
 
+test("auto-git ledger records sanitized thread handoff actions", async () => {
+  const repo = await createFixtureRepo("auto-git-thread-ledger-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-thread-ledger-state-"));
+  try {
+    for (const action of ["create", "send", "read", "handoff"]) {
+      snapshot(
+        repo,
+        ["--write-state", "--claim-run", `create a follow-up chat for ADR 3 ${action}`, "--run-id", `thread-${action}-run`],
+        { AUTO_GIT_STATE_HOME: stateHome }
+      );
+    }
+    snapshot(repo, ["--write-state", "--claim-run", "checkpoint this locally", "--run-id", "local-no-thread-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+
+    for (const action of ["create", "send", "read", "handoff"]) {
+      const result = script(
+        "auto-git-ledger.mjs",
+        repo,
+        [
+          "record-thread",
+          "--run-id",
+          `thread-${action}-run`,
+          "--action",
+          action,
+          "--source-session",
+          "019ee3c0-9580-7e70-b322-418f130b8303",
+          "--thread-id",
+          `019ee3ce-${action}`,
+          "--target",
+          `ADR 3 ${action}`,
+          "--repo",
+          "async/auto-git",
+          "--package",
+          "@async/auto-git",
+          "--branch",
+          "codex/adr-3-thread-handoff-ledger",
+          "--worktree",
+          "/Users/patrickjs/.codex/worktrees/8bd1/auto-git",
+          "--pr-url",
+          "https://github.com/async/auto-git/pull/99",
+          "--pr-number",
+          "99",
+          "--release-check",
+          "not-in-scope",
+          "--next-adr",
+          "ADR 4",
+          "--json"
+        ],
+        { AUTO_GIT_STATE_HOME: stateHome }
+      );
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+    }
+
+    const ledgerResult = script("auto-git-ledger.mjs", repo, ["list", "--json"], { AUTO_GIT_STATE_HOME: stateHome });
+    assert.equal(ledgerResult.status, 0, ledgerResult.stderr || ledgerResult.stdout);
+    const ledgerPayload = JSON.parse(ledgerResult.stdout);
+    for (const action of ["create", "send", "read", "handoff"]) {
+      const run = ledgerPayload.runs.find((entry) => entry.id === `thread-${action}-run`);
+      assert.equal(run.threadHandoff.action, action);
+      assert.equal(run.threadHandoff.sourceSessionId, "019ee3c0-9580-7e70-b322-418f130b8303");
+      assert.equal(run.threadHandoff.threadId, `019ee3ce-${action}`);
+      assert.equal(run.threadHandoff.repository, "async/auto-git");
+      assert.equal(run.threadHandoff.package, "@async/auto-git");
+      assert.equal(run.threadHandoff.branch, "codex/adr-3-thread-handoff-ledger");
+      assert.equal(run.threadHandoff.worktree.class, "codex-worktree");
+      assert.equal(run.threadHandoff.worktree.basename, "auto-git");
+      assert.equal(run.threadHandoff.pr.url, "https://github.com/async/auto-git/pull/99");
+      assert.equal(run.threadHandoff.pr.number, 99);
+      assert.equal(run.threadHandoff.releaseCheck.status, "not-in-scope");
+      assert.equal(run.threadHandoff.nextAdr, "ADR 4");
+    }
+    assert.equal(ledgerPayload.runs.find((entry) => entry.id === "local-no-thread-run").threadHandoff, undefined);
+    assert.doesNotMatch(JSON.stringify(ledgerPayload.runs), /\/Users\/patrickjs/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git ledger excludes transcript-like and secret-looking handoff content", async () => {
+  const repo = await createFixtureRepo("auto-git-thread-ledger-safety-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-thread-ledger-safety-state-"));
+  try {
+    const result = snapshot(
+      repo,
+      ["--write-state", "--claim-run", "create a follow-up chat after ADR 3", "--run-id", "unsafe-thread-run"],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    const ledgerPath = path.join(stateHome, "repos", result.snapshot.repo.hash, "ledger.json");
+    const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
+    const run = ledger.runs.find((entry) => entry.id === "unsafe-thread-run");
+    run.threadHandoff = {
+      status: "recorded",
+      action: "create",
+      sourceSessionId: "SESSION_TOKEN=secret",
+      threadId: "thread-safe",
+      target: "BEGIN TRANSCRIPT user: TOKEN=secret",
+      repository: "/Users/patrickjs/code/async/auto-git",
+      package: "@async/auto-git",
+      branch: "codex/thread",
+      worktree: {
+        class: "codex-worktree",
+        basename: "auto-git",
+        path: "/Users/patrickjs/.codex/worktrees/8bd1/auto-git"
+      },
+      pr: {
+        url: "https://github.com/async/auto-git/pull/123?token=secret",
+        number: 123
+      },
+      nextAdr: "ADR 4"
+    };
+    await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+
+    const ledgerResult = script("auto-git-ledger.mjs", repo, ["show", "unsafe-thread-run", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(ledgerResult.status, 0, ledgerResult.stderr || ledgerResult.stdout);
+    const payload = JSON.parse(ledgerResult.stdout);
+    const handoffText = JSON.stringify(payload.runs[0].threadHandoff);
+    assert.match(handoffText, /thread-safe/);
+    assert.doesNotMatch(handoffText, /TOKEN=secret|BEGIN TRANSCRIPT|\/Users\/patrickjs|\?token=secret/);
+    assert.equal(payload.runs[0].threadHandoff.repository, "auto-git");
+    assert.equal(payload.runs[0].threadHandoff.pr.url, undefined);
+
+    const rejected = script(
+      "auto-git-ledger.mjs",
+      repo,
+      [
+        "record-thread",
+        "--run-id",
+        "unsafe-thread-run",
+        "--action",
+        "create",
+        "--thread-id",
+        "thread-safe",
+        "--target",
+        "BEGIN TRANSCRIPT TOKEN=secret"
+      ],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    assert.equal(rejected.status, 1);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git finish completes follow-up routes with preserved thread evidence", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-thread-evidence-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-thread-evidence-state-"));
+  try {
+    const start = snapshot(
+      repo,
+      ["--write-state", "--claim-run", "create a follow-up chat after ADR 3", "--run-id", "follow-up-recorded-run"],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    const record = script(
+      "auto-git-ledger.mjs",
+      repo,
+      [
+        "record-thread",
+        "--run-id",
+        "follow-up-recorded-run",
+        "--action",
+        "create",
+        "--source-session",
+        "019ee3c0-9580-7e70-b322-418f130b8303",
+        "--thread-id",
+        "019ee3ce-bc3f-73b3-8ae4-4e57458cb6a8",
+        "--target",
+        "ADR 4",
+        "--repo",
+        "async/auto-git",
+        "--package",
+        "@async/auto-git",
+        "--worktree-class",
+        "codex-worktree",
+        "--next-adr",
+        "ADR 4",
+        "--json"
+      ],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+    assert.equal(record.status, 0, record.stderr || record.stdout);
+
+    const result = script("auto-git-finish.mjs", repo, ["--run-id", "follow-up-recorded-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "completed");
+    assert.equal(payload.contract.threadHandoff.satisfied, true);
+    assert.ok(payload.mutations.includes("preserve-thread-handoff"));
+
+    const ledger = JSON.parse(await readFile(path.join(stateHome, "repos", start.snapshot.repo.hash, "ledger.json"), "utf8"));
+    const ledgerRun = ledger.runs.find((entry) => entry.id === "follow-up-recorded-run");
+    assert.equal(ledgerRun.status, "completed");
+    assert.equal(ledgerRun.threadHandoff.action, "create");
+    assert.equal(ledgerRun.threadHandoff.target, "ADR 4");
+    assert.equal(ledgerRun.threadHandoff.nextAdr, "ADR 4");
+    assert.equal(ledgerRun.threadHandoff.worktree.class, "codex-worktree");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("auto-git finish completes a satisfied local-review route", async () => {
   const repo = await createFixtureRepo("auto-git-finish-local-review-");
   const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-local-review-state-"));
