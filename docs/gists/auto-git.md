@@ -332,13 +332,21 @@ Controller helpers:
 auto-git start --cwd "$PWD" --task "fix this"
 auto-git ledger list --cwd "$PWD"
 auto-git finish --cwd "$PWD" --run-id "<id>" --complete
-auto-git release-preflight --cwd "$PWD" --require-verification
+auto-git release-preflight --cwd "$PWD" --run-id "<id>" --require-verification
 ```
 
-`auto-git-finish.mjs` blocks coordinated/everything/yolo completion until the
-branch is pushed upstream or merged into a pushed base branch, the checkout is
-switched back to main/default, a PR handoff or merge is recorded, and the
-ledger update succeeds.
+`auto-git-finish.mjs` validates the run's `decisionReceipt` before it reports
+done. It blocks when the receipt requires evidence that is missing: clean
+working tree, commit evidence after changes, branch/worktree evidence,
+verification, push/sync, PR/merge/land, release-preflight, release execution or
+explicit deferral, follow-up thread handoff, return to main/default, and the
+final ledger update. Blockers are short command-class hints and do not include
+raw diffs, command output, transcripts, or secret-looking values.
+
+For release and yolo routes, `auto-git release-preflight` records successful
+preflight evidence to the active or requested run using safe metadata only.
+If release execution is intentionally deferred, finish requires an explicit
+`--defer-release`.
 
 Completion from main/default still preserves the completed branch/head in the
 ledger so later chats can find the exact handoff.

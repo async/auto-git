@@ -250,18 +250,26 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
     ledger metadata
   - never deletes ledger entries
 - `auto-git finish --cwd "$PWD" --run-id "<id>" [--complete]`
-  - checks dirty state, HEAD/upstream, active run locks, PR readiness, and
-    verification against current HEAD
+  - checks dirty state, unresolved index state, HEAD/upstream, active run
+    locks, PR readiness, and verification against current HEAD
+  - validates the run's `decisionReceipt` completion gates before reporting
+    done; missing gate evidence fails closed with a short actionable blocker
   - blocks completion for coordinated/everything/yolo branch work until the
     branch is pushed upstream and the checkout is switched back to main/default
   - checks whether there is a recorded PR handoff or pushed merge evidence, and
     whether the ledger update actually completed
+  - blocks release/yolo completion until release-preflight evidence is recorded
+    and release execution is recorded or explicitly deferred with
+    `--defer-release`
+  - blocks follow-up-thread completion until thread handoff evidence exists
   - preserves the completed branch/head in the ledger even when completion is
     run from main/default after cleanup
   - records PR metadata when asked and completes the run only when safe
-- `auto-git release-preflight --cwd "$PWD" [--require-verification]`
+- `auto-git release-preflight --cwd "$PWD" [--run-id "<id>"] [--require-verification]`
   - checks package version, changelog/release notes, dirty state, existing
     local tag conflicts, and optional remote release/tag state before tagging
+  - records successful release-preflight evidence to the active or requested
+    Auto Git run using safe metadata only
   - successful clean release verification may be reused after switching back to
     main/default when `HEAD` is unchanged, even if the upstream branch context
     changed the dirty fingerprint
@@ -269,7 +277,7 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
 
 ## Global Async State
 
-Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection and to coordinate across chats. Live runtime leases use Async-compatible lock records under `~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completion removes the live lease and writes a receipt under `~/.async/locks/auto-git/history/`. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, recovery hints, run ids, task slugs, lifecycle modes, coordinated intents, branch names, worktree paths, base branches, lease expirations, lease paths, verification keys, and PR URLs/statuses.
+Auto Git may use global advisory state under `~/.async/auto-git/v1/repos/<repo-hash>/` to avoid repeating expensive inspection and to coordinate across chats. Live runtime leases use Async-compatible lock records under `~/.async/locks/auto-git/repos/<repo-hash>/runs/*.lease.json`; completion removes the live lease and writes a receipt under `~/.async/locks/auto-git/history/`. This state is a cache of safe metadata: fingerprints, file path lists, commit ids, command names, exit codes, timestamps, lock classifications, process ids started by Auto Git, execution profiles, generated env override names/values, durations, recovery hints, run ids, task slugs, lifecycle modes, coordinated intents, branch names, worktree paths, base branches, lease expirations, lease paths, verification keys, release-preflight evidence, release deferral state, thread handoff ids/status, and PR URLs/statuses.
 
 The ledger is cooperative. Auto Git can reliably detect stale or inactive chats
 only when those chats used Auto Git and wrote ledger state. A run is active

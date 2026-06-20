@@ -108,6 +108,10 @@ function publicRun(run, statusById) {
         }
       : undefined,
     pr: run.pr,
+    releasePreflight: run.releasePreflight,
+    releaseExecution: run.releaseExecution,
+    releaseDeferral: run.releaseDeferral,
+    threadHandoff: run.threadHandoff,
     decisionReceipt: run.decisionReceipt
   };
 }

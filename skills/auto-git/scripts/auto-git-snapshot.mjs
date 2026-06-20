@@ -55,6 +55,8 @@ function usage() {
     "       [--lifecycle <checkpoint|sync|land|fanout|everything|yolo>]",
     "       [--heartbeat-run <run-id>] [--complete-run <run-id>]",
     "       [--record-pr <run-id> --pr-url <url> [--pr-number <n>]]",
+    "       [--record-release-preflight <run-id>] [--release-version <semver>] [--release-tag <tag>]",
+    "       [--record-release-deferral <run-id>]",
     "       [--lease-ttl-ms <n>]",
     "       [--record-verification <name> --exit-code <n>]",
     "       [--execution-profile <name>] [--duration-ms <n>] [--failure-class <name>]",
@@ -79,6 +81,10 @@ function parseArgs(argv) {
     prNumber: undefined,
     prBranch: undefined,
     prStatus: "open",
+    recordReleasePreflight: undefined,
+    releaseVersion: undefined,
+    releaseTag: undefined,
+    recordReleaseDeferral: undefined,
     baseBranch: undefined,
     leaseTtlMs: DEFAULT_LEASE_TTL_MS,
     recordVerification: undefined,
@@ -146,6 +152,22 @@ function parseArgs(argv) {
       parsed.prStatus = requireValue(argv, ++index, arg);
       continue;
     }
+    if (arg === "--record-release-preflight") {
+      parsed.recordReleasePreflight = requireValue(argv, ++index, arg);
+      continue;
+    }
+    if (arg === "--release-version") {
+      parsed.releaseVersion = requireValue(argv, ++index, arg);
+      continue;
+    }
+    if (arg === "--release-tag") {
+      parsed.releaseTag = requireValue(argv, ++index, arg);
+      continue;
+    }
+    if (arg === "--record-release-deferral") {
+      parsed.recordReleaseDeferral = requireValue(argv, ++index, arg);
+      continue;
+    }
     if (arg === "--base-branch") {
       parsed.baseBranch = requireValue(argv, ++index, arg);
       continue;
@@ -184,7 +206,9 @@ function parseArgs(argv) {
     parsed.claimRun !== undefined ||
     parsed.heartbeatRun !== undefined ||
     parsed.completeRun !== undefined ||
-    parsed.recordPr !== undefined;
+    parsed.recordPr !== undefined ||
+    parsed.recordReleasePreflight !== undefined ||
+    parsed.recordReleaseDeferral !== undefined;
   if (mutatesLedger && !parsed.writeState) {
     throw new Error("Run ledger updates require --write-state.");
   }
@@ -224,6 +248,10 @@ function parseArgs(argv) {
     ["--record-pr", parsed.recordPr],
     ["--pr-url", parsed.prUrl],
     ["--pr-branch", parsed.prBranch],
+    ["--record-release-preflight", parsed.recordReleasePreflight],
+    ["--release-version", parsed.releaseVersion],
+    ["--release-tag", parsed.releaseTag],
+    ["--record-release-deferral", parsed.recordReleaseDeferral],
     ["--base-branch", parsed.baseBranch]
   ]) {
     if (typeof value === "string" && looksSecretish(value)) {
@@ -1027,6 +1055,10 @@ function normalizeRun(run) {
     commits: Array.isArray(run.commits) ? run.commits.filter((commit) => typeof commit === "string").slice(0, 200) : [],
     verification: normalizeVerification(run.verification),
     pr: normalizePr(run.pr),
+    releasePreflight: normalizeReleasePreflight(run.releasePreflight),
+    releaseExecution: normalizeReleaseExecution(run.releaseExecution),
+    releaseDeferral: normalizeReleaseDeferral(run.releaseDeferral),
+    threadHandoff: normalizeThreadHandoff(run.threadHandoff),
     decisionReceipt: normalizeDecisionReceipt(run.decisionReceipt)
   };
 }
@@ -1105,6 +1137,45 @@ function normalizePr(pr) {
     baseBranch: typeof pr.baseBranch === "string" ? pr.baseBranch : undefined,
     status: ["open", "draft", "closed", "merged"].includes(pr.status) ? pr.status : "open",
     recordedAt: typeof pr.recordedAt === "string" ? pr.recordedAt : undefined
+  };
+}
+
+function normalizeReleasePreflight(preflight) {
+  if (!preflight || typeof preflight !== "object") return undefined;
+  return {
+    safeToTag: preflight.safeToTag === true,
+    version: typeof preflight.version === "string" && !looksSecretish(preflight.version) ? preflight.version.slice(0, 80) : undefined,
+    tagName: typeof preflight.tagName === "string" && !looksSecretish(preflight.tagName) ? preflight.tagName.slice(0, 120) : undefined,
+    recordedAt: typeof preflight.recordedAt === "string" ? preflight.recordedAt : undefined,
+    head: typeof preflight.head === "string" ? preflight.head : undefined,
+    dirtyFingerprint: typeof preflight.dirtyFingerprint === "string" ? preflight.dirtyFingerprint : undefined
+  };
+}
+
+function normalizeReleaseExecution(execution) {
+  if (!execution || typeof execution !== "object") return undefined;
+  return {
+    status: execution.status === "executed" ? "executed" : undefined,
+    recordedAt: typeof execution.recordedAt === "string" ? execution.recordedAt : undefined,
+    head: typeof execution.head === "string" ? execution.head : undefined
+  };
+}
+
+function normalizeReleaseDeferral(deferral) {
+  if (!deferral || typeof deferral !== "object") return undefined;
+  return {
+    status: deferral.status === "deferred" ? "deferred" : undefined,
+    recordedAt: typeof deferral.recordedAt === "string" ? deferral.recordedAt : undefined,
+    head: typeof deferral.head === "string" ? deferral.head : undefined
+  };
+}
+
+function normalizeThreadHandoff(handoff) {
+  if (!handoff || typeof handoff !== "object") return undefined;
+  return {
+    status: typeof handoff.status === "string" && !looksSecretish(handoff.status) ? handoff.status.slice(0, 40) : undefined,
+    threadId: typeof handoff.threadId === "string" && !looksSecretish(handoff.threadId) ? handoff.threadId.slice(0, 120) : undefined,
+    recordedAt: typeof handoff.recordedAt === "string" ? handoff.recordedAt : undefined
   };
 }
 
@@ -1260,6 +1331,41 @@ function mutateLedger(snapshot, ledger, options, updatedAt) {
     changed = true;
   }
 
+  if (options.recordReleasePreflight) {
+    const id = sanitizeRunId(options.recordReleasePreflight);
+    currentRunId = id;
+    const existing = runs.find((run) => run.id === id);
+    if (!existing) throw new Error(`Cannot record release preflight for unknown Auto Git run: ${id}`);
+    runs = upsertRun(runs, {
+      ...existing,
+      releasePreflight: {
+        safeToTag: true,
+        version: typeof options.releaseVersion === "string" ? options.releaseVersion.slice(0, 80) : undefined,
+        tagName: typeof options.releaseTag === "string" ? options.releaseTag.slice(0, 120) : undefined,
+        recordedAt: updatedAt,
+        head: snapshot.topology.head,
+        dirtyFingerprint: snapshot.dirty.fingerprint
+      }
+    });
+    changed = true;
+  }
+
+  if (options.recordReleaseDeferral) {
+    const id = sanitizeRunId(options.recordReleaseDeferral);
+    currentRunId = id;
+    const existing = runs.find((run) => run.id === id);
+    if (!existing) throw new Error(`Cannot record release deferral for unknown Auto Git run: ${id}`);
+    runs = upsertRun(runs, {
+      ...existing,
+      releaseDeferral: {
+        status: "deferred",
+        recordedAt: updatedAt,
+        head: snapshot.topology.head
+      }
+    });
+    changed = true;
+  }
+
   return {
     ledger: { schemaVersion: SCHEMA_VERSION, updatedAt: changed ? updatedAt : ledger.updatedAt, runs },
     changed,
@@ -1380,6 +1486,10 @@ function publicRun(run, state) {
     commits: run.commits,
     verification: run.verification,
     pr: run.pr,
+    releasePreflight: run.releasePreflight,
+    releaseExecution: run.releaseExecution,
+    releaseDeferral: run.releaseDeferral,
+    threadHandoff: run.threadHandoff,
     decisionReceipt: run.decisionReceipt
   };
 }
