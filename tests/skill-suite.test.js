@@ -614,6 +614,125 @@ test("auto-git start writes sanitized decision receipts", async () => {
   }
 });
 
+test("auto-git finish blocks coordinated routes with only local evidence", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-local-only-");
+  const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-local-only-remote-"));
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-local-only-state-"));
+  try {
+    git(remote, ["init", "--bare"]);
+    git(repo, ["remote", "add", "origin", remote]);
+    git(repo, ["push", "-u", "origin", "main"]);
+    git(repo, ["switch", "-c", "codex/local-only"]);
+
+    snapshot(repo, ["--write-state", "--claim-run", "get this in", "--run-id", "local-only-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    await writeProjectFile(repo, "src/local-only.js", "export const localOnly = true;\n");
+    commit(repo, "feat(auto-git): create local-only branch evidence", "Codex Tester <codex@example.com>");
+    snapshot(repo, ["--write-state", "--heartbeat-run", "local-only-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+
+    const result = script("auto-git-finish.mjs", repo, ["--run-id", "local-only-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "blocked");
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("missing push/sync evidence")));
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("missing verification evidence")));
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("missing PR/merge/land evidence")));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git finish blocks release routes without release-preflight evidence", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-release-contract-");
+  const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-release-contract-remote-"));
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-release-contract-state-"));
+  try {
+    git(remote, ["init", "--bare"]);
+    git(repo, ["remote", "add", "origin", remote]);
+    await writeProjectFile(
+      repo,
+      "package.json",
+      JSON.stringify({ name: "fixture", version: "1.2.3", type: "module" }, null, 2) + "\n"
+    );
+    await writeProjectFile(repo, "CHANGELOG.md", "# Changelog\n\n## 1.2.3 - 2026-06-20\n\n- Release metadata.\n");
+    commit(repo, "release(fixture): prepare 1.2.3", "Codex Tester <codex@example.com>");
+    git(repo, ["push", "-u", "origin", "main"]);
+
+    snapshot(repo, ["--write-state", "--claim-run", "everything release", "--run-id", "release-contract-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    snapshot(
+      repo,
+      ["--write-state", "--record-verification", "pnpm run verify", "--exit-code", "0", "--run-id", "release-contract-run"],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+
+    const result = script("auto-git-finish.mjs", repo, ["--run-id", "release-contract-run", "--defer-release", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "blocked");
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("missing release-preflight evidence")));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(remote, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git finish blocks follow-up routes without thread evidence", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-follow-up-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-follow-up-state-"));
+  try {
+    snapshot(
+      repo,
+      ["--write-state", "--claim-run", "create a follow-up chat after ADR 2", "--run-id", "follow-up-run"],
+      { AUTO_GIT_STATE_HOME: stateHome }
+    );
+
+    const result = script("auto-git-finish.mjs", repo, ["--run-id", "follow-up-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "blocked");
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("missing follow-up thread evidence")));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("auto-git finish completes a satisfied local-review route", async () => {
+  const repo = await createFixtureRepo("auto-git-finish-local-review-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-local-review-state-"));
+  try {
+    snapshot(repo, ["--write-state", "--claim-run", "checkpoint this locally", "--run-id", "local-review-run"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+
+    const result = script("auto-git-finish.mjs", repo, ["--run-id", "local-review-run", "--complete", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "completed");
+    assert.equal(payload.contract.branchOrWorktree.required, false);
+    assert.equal(payload.ledger.status, "completed");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("auto-git finish requires pushed branch and return to main for everything runs", async () => {
   const repo = await createFixtureRepo("auto-git-finish-main-");
   const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-remote-"));
@@ -647,7 +766,7 @@ test("auto-git finish requires pushed branch and return to main for everything r
     assert.equal(payload.branchCompletion.returnedToBase, false);
     assert.equal(payload.handoffCheck.satisfied, false);
     assert.ok(payload.blockers.some((blocker) => blocker.includes("switch back to main")));
-    assert.ok(payload.blockers.some((blocker) => blocker.includes("no recorded PR handoff")));
+    assert.ok(payload.blockers.some((blocker) => blocker.includes("missing PR/merge/land evidence")));
 
     git(repo, ["switch", "main"]);
     result = script(
@@ -693,6 +812,13 @@ test("auto-git finish accepts pushed yolo merge evidence without PR handoff", as
   try {
     git(remote, ["init", "--bare"]);
     git(repo, ["remote", "add", "origin", remote]);
+    await writeProjectFile(
+      repo,
+      "package.json",
+      JSON.stringify({ name: "fixture", version: "1.2.3", type: "module" }, null, 2) + "\n"
+    );
+    await writeProjectFile(repo, "CHANGELOG.md", "# Changelog\n\n## 1.2.3 - 2026-06-20\n\n- Release metadata.\n");
+    commit(repo, "release(fixture): prepare 1.2.3", "Codex Tester <codex@example.com>");
     git(repo, ["push", "-u", "origin", "main"]);
     git(repo, ["switch", "-c", "codex/finish-merged"]);
     await writeProjectFile(repo, "src/merged.js", "export const merged = true;\n");
@@ -706,23 +832,29 @@ test("auto-git finish accepts pushed yolo merge evidence without PR handoff", as
     snapshot(repo, ["--write-state", "--record-verification", "pnpm run verify", "--exit-code", "0", "--run-id", "merge-run"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
+    let result = script("auto-git-release-preflight.mjs", repo, ["--run-id", "merge-run", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    let payload = JSON.parse(result.stdout);
+    assert.equal(payload.evidenceStateWrite.ok, true);
 
     git(repo, ["switch", "main"]);
     git(repo, ["merge", "--ff-only", "codex/finish-merged"]);
     git(repo, ["branch", "-d", "codex/finish-merged"]);
 
-    let result = script("auto-git-finish.mjs", repo, ["--run-id", "merge-run", "--complete", "--json"], {
+    result = script("auto-git-finish.mjs", repo, ["--run-id", "merge-run", "--complete", "--json"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
     assert.equal(result.status, 1);
-    let payload = JSON.parse(result.stdout);
+    payload = JSON.parse(result.stdout);
     assert.equal(payload.handoffCheck.satisfied, true);
     assert.equal(payload.handoffCheck.merge.mergedIntoBase, true);
     assert.equal(payload.branchCompletion.exists, false);
     assert.ok(payload.blockers.some((blocker) => blocker.includes("base branch main has 1 unpushed commit")));
 
     git(repo, ["push", "origin", "main"]);
-    result = script("auto-git-finish.mjs", repo, ["--run-id", "merge-run", "--complete", "--json"], {
+    result = script("auto-git-finish.mjs", repo, ["--run-id", "merge-run", "--defer-release", "--complete", "--json"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);

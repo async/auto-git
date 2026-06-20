@@ -10,7 +10,7 @@ const SNAPSHOT_SCRIPT = new URL("./auto-git-snapshot.mjs", import.meta.url);
 function usage() {
   return [
     "Usage: auto-git-release-preflight.mjs [--cwd <repo>] [--version <semver>]",
-    "       [--tag-prefix <prefix>] [--require-verification] [--check-remote] [--json]",
+    "       [--tag-prefix <prefix>] [--run-id <id>] [--require-verification] [--check-remote] [--json]",
     "",
     "Checks release metadata before creating or pushing a release tag."
   ].join("\n");
@@ -21,6 +21,7 @@ function parseArgs(argv) {
     cwd: process.cwd(),
     version: undefined,
     tagPrefix: "v",
+    runId: undefined,
     requireVerification: false,
     checkRemote: false,
     json: false
@@ -41,6 +42,10 @@ function parseArgs(argv) {
     }
     if (arg === "--tag-prefix") {
       parsed.tagPrefix = requireValue(argv, ++index, arg);
+      continue;
+    }
+    if (arg === "--run-id") {
+      parsed.runId = requireValue(argv, ++index, arg);
       continue;
     }
     if (arg === "--require-verification") {
@@ -75,6 +80,20 @@ function runSnapshot(cwd) {
   const payload = JSON.parse(result.stdout);
   if (!payload.ok) throw new Error(payload.error ?? "snapshot failed");
   return payload.snapshot;
+}
+
+function runSnapshotMutation(args) {
+  const result = spawnSync(process.execPath, [SNAPSHOT_SCRIPT.pathname, ...args], {
+    encoding: "utf8",
+    env: process.env
+  });
+  if (result.status !== 0) return { ok: false, reason: result.stderr || result.stdout || `snapshot exited ${result.status}` };
+  try {
+    const payload = JSON.parse(result.stdout);
+    return payload.stateWrite ?? { ok: false, reason: "snapshot mutation did not return stateWrite" };
+  } catch (error) {
+    return { ok: false, reason: String(error?.message ?? error) };
+  }
 }
 
 function git(cwd, args) {
@@ -159,6 +178,34 @@ function githubReleaseStatus(repoRoot, tagName) {
   return { checked: true, exists: false, warning: gh.stderr.trim() || "gh release view failed" };
 }
 
+function currentRun(snapshot, requestedId) {
+  const runs = [
+    ...(snapshot.occupancy?.activeRuns ?? []),
+    ...(snapshot.occupancy?.staleRuns ?? []),
+    ...(snapshot.handoffs?.openPrs ?? [])
+  ];
+  if (requestedId) return runs.find((run) => run.id === requestedId);
+  const active = snapshot.occupancy?.activeRuns ?? [];
+  if (active.length === 1) return active[0];
+  return runs.find((run) => run.branch === snapshot.topology.branch);
+}
+
+function recordPreflightEvidence(repoRoot, snapshot, options, tagName, version, safeToTag) {
+  if (!safeToTag) return { ok: false, skipped: true, reason: "preflight did not pass" };
+  const run = currentRun(snapshot, options.runId);
+  if (!run?.id) return { ok: false, skipped: true, reason: "no Auto Git run resolved for release-preflight evidence" };
+  const args = [
+    "--cwd",
+    repoRoot,
+    "--write-state",
+    "--record-release-preflight",
+    run.id
+  ];
+  if (version) args.push("--release-version", version);
+  if (tagName) args.push("--release-tag", tagName);
+  return runSnapshotMutation(args);
+}
+
 function buildReceipt(options) {
   const repoRoot = resolve(options.cwd);
   const snapshot = runSnapshot(repoRoot);
@@ -212,13 +259,20 @@ function buildReceipt(options) {
   if (githubRelease.exists) blockers.push(`GitHub Release ${tagName} already exists`);
   if (githubRelease.warning) warnings.push(githubRelease.warning);
 
+  const safeToTag = blockers.length === 0;
+  const evidenceStateWrite = recordPreflightEvidence(repoRoot, snapshot, options, tagName, version, safeToTag);
+  if (safeToTag && evidenceStateWrite.ok === false && !evidenceStateWrite.skipped) {
+    warnings.push(`release-preflight evidence was not recorded: ${evidenceStateWrite.reason ?? "unknown error"}`);
+  }
+
   return {
     schemaVersion: 1,
     tool: "auto-git-release-preflight",
-    ok: blockers.length === 0,
-    safeToTag: blockers.length === 0,
+    ok: safeToTag,
+    safeToTag,
     blockers,
     warnings,
+    evidenceStateWrite,
     repo: {
       root: snapshot.repo.root,
       branch: snapshot.topology.branch,
