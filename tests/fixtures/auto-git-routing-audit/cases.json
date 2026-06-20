@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "source": "ADR 4 sanitized routing audit categories",
+  "cases": [
+    {
+      "id": "installed-source-testing",
+      "triggerType": "installed-vs-source-auto-git-testing",
+      "expectedRoute": "meta-testing",
+      "observedRouteCategory": "meta-testing",
+      "followUpEvidenceClass": "not-applicable",
+      "verdict": "correct",
+      "sanitizedRationaleClass": "installed-source-test-boundary",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": false,
+        "ledgerThread": false,
+        "verification": false,
+        "push": false,
+        "prOrMerge": false,
+        "releasePreflight": false,
+        "localOnly": true,
+        "decisionPointReached": true
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "inconclusive",
+        "selectedWorkflowMode": "local-review",
+        "completionGates": ["manual-routing-confirmation", "ledger-finish"],
+        "releasePreflightRequired": false,
+        "threadHandoffRequired": false
+      }
+    },
+    {
+      "id": "release-thread-handoff",
+      "triggerType": "release-thread-handoff",
+      "expectedRoute": "follow-up-thread",
+      "observedRouteCategory": "thread-handoff",
+      "followUpEvidenceClass": "thread-handoff-required",
+      "verdict": "correct",
+      "sanitizedRationaleClass": "next-chat-handoff",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": true,
+        "ledgerThread": true,
+        "verification": false,
+        "push": false,
+        "prOrMerge": false,
+        "releasePreflight": false,
+        "localOnly": false,
+        "decisionPointReached": true
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "fanout",
+        "selectedWorkflowMode": "follow-up-thread",
+        "completionGates": ["thread-handoff-evidence", "ledger-finish"],
+        "releasePreflightRequired": false,
+        "threadHandoffRequired": true
+      },
+      "finishScenario": "missing-thread-evidence",
+      "expectedFinishBlockers": ["missing follow-up thread evidence"]
+    },
+    {
+      "id": "package-path-scope-correction",
+      "triggerType": "package-path-scope-correction",
+      "expectedRoute": "manual-scope-confirmation",
+      "observedRouteCategory": "scope-correction",
+      "followUpEvidenceClass": "not-applicable",
+      "verdict": "inconclusive",
+      "sanitizedRationaleClass": "package-path-scope-only",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": false,
+        "ledgerThread": false,
+        "verification": false,
+        "push": false,
+        "prOrMerge": false,
+        "releasePreflight": false,
+        "localOnly": true,
+        "decisionPointReached": false
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "inconclusive",
+        "selectedWorkflowMode": "local-review",
+        "completionGates": ["manual-routing-confirmation", "ledger-finish"],
+        "releasePreflightRequired": false,
+        "threadHandoffRequired": false
+      }
+    },
+    {
+      "id": "sync-main",
+      "triggerType": "sync-with-main",
+      "expectedRoute": "sync",
+      "observedRouteCategory": "sync-route",
+      "followUpEvidenceClass": "not-applicable",
+      "verdict": "correct",
+      "sanitizedRationaleClass": "push-or-sync-wording",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": true,
+        "ledgerThread": false,
+        "verification": true,
+        "push": true,
+        "prOrMerge": false,
+        "releasePreflight": false,
+        "localOnly": false,
+        "decisionPointReached": true
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "sync",
+        "selectedWorkflowMode": "local-review",
+        "completionGates": ["commit-by-intent", "verification", "branch-pushed", "ledger-finish"],
+        "releasePreflightRequired": false,
+        "threadHandoffRequired": false
+      }
+    },
+    {
+      "id": "everything-release-merge",
+      "triggerType": "everything-plus-release-merge",
+      "expectedRoute": "release",
+      "observedRouteCategory": "release-route",
+      "followUpEvidenceClass": "not-applicable",
+      "verdict": "correct",
+      "sanitizedRationaleClass": "release-preflight-required",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": true,
+        "ledgerThread": false,
+        "verification": true,
+        "push": true,
+        "prOrMerge": false,
+        "releasePreflight": true,
+        "localOnly": false,
+        "decisionPointReached": true
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "release",
+        "selectedWorkflowMode": "release",
+        "completionGates": [
+          "release-metadata-commit",
+          "verification",
+          "release-preflight",
+          "branch-pushed-before-tag",
+          "ledger-finish"
+        ],
+        "releasePreflightRequired": true,
+        "threadHandoffRequired": false
+      },
+      "finishScenario": "release-without-preflight",
+      "expectedFinishBlockers": ["missing release-preflight evidence"]
+    },
+    {
+      "id": "coordinated-local-only",
+      "triggerType": "coordinated-local-only-evidence",
+      "expectedRoute": "coordinated-branch-worktree",
+      "observedRouteCategory": "local-only-evidence",
+      "followUpEvidenceClass": "not-applicable",
+      "verdict": "misroute",
+      "sanitizedRationaleClass": "coordinated-route-missing-remote-evidence",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": true,
+        "ledgerThread": false,
+        "verification": false,
+        "push": false,
+        "prOrMerge": false,
+        "releasePreflight": false,
+        "localOnly": true,
+        "decisionPointReached": true
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "merge",
+        "selectedWorkflowMode": "coordinated-branch-worktree",
+        "completionGates": [
+          "isolated-branch-or-worktree",
+          "commit-by-intent",
+          "verification",
+          "branch-pushed",
+          "pr-handoff-or-merge-evidence",
+          "return-to-base",
+          "ledger-finish"
+        ],
+        "releasePreflightRequired": false,
+        "threadHandoffRequired": false
+      },
+      "finishScenario": "coordinated-local-only",
+      "expectedFinishBlockers": [
+        "missing push/sync evidence",
+        "missing verification evidence",
+        "missing PR/merge/land evidence"
+      ]
+    },
+    {
+      "id": "inconclusive-no-decision-point",
+      "triggerType": "inconclusive-no-decision-point",
+      "expectedRoute": "inconclusive",
+      "observedRouteCategory": "insufficient-evidence",
+      "followUpEvidenceClass": "not-proven",
+      "verdict": "inconclusive",
+      "sanitizedRationaleClass": "decision-point-not-reached",
+      "evidenceFlags": {
+        "startReceipt": true,
+        "finishGate": true,
+        "ledgerThread": false,
+        "verification": false,
+        "push": false,
+        "prOrMerge": false,
+        "releasePreflight": false,
+        "localOnly": false,
+        "decisionPointReached": false
+      },
+      "expectedReceipt": {
+        "normalizedIntentLabel": "inconclusive",
+        "selectedWorkflowMode": "local-review",
+        "completionGates": ["manual-routing-confirmation", "ledger-finish"],
+        "releasePreflightRequired": false,
+        "threadHandoffRequired": false
+      },
+      "finishScenario": "inconclusive",
+      "expectedFinishBlockers": ["missing manual routing confirmation"]
+    }
+  ]
+}
