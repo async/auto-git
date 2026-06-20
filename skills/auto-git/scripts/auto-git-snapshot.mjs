@@ -26,6 +26,27 @@ const DEFAULT_LEASE_TTL_MS = 45 * 60 * 1000;
 const PACKAGE_MANAGER_HINT_THREAD = "019ebdd4-9cff-76c2-bf71-a3bb38ad1592";
 const INTENT_VALUES = ["merge", "branch", "experiment", "checkpoint", "release", "unknown"];
 const LIFECYCLE_VALUES = ["checkpoint", "sync", "land", "fanout", "everything", "yolo"];
+const DECISION_INTENT_VALUES = [
+  "checkpoint",
+  "sync",
+  "branch",
+  "worktree",
+  "PR",
+  "release",
+  "merge",
+  "land",
+  "everything",
+  "yolo",
+  "fanout",
+  "inconclusive"
+];
+const DECISION_WORKFLOW_VALUES = [
+  "local-review",
+  "coordinated-branch-worktree",
+  "follow-up-thread",
+  "fanout",
+  "release"
+];
 
 function usage() {
   return [
@@ -329,16 +350,13 @@ function classifyIntent(value, explicitIntent) {
   if (/\b(testing something|experimenting|experiment|try this|trying this|not sure|unsure|spike|prototype)\b/.test(text)) {
     return "experiment";
   }
-  if (
-    /\b(make|create|start|put)\s+(a\s+)?branch\b|\bbranch this\b|\bput this on a branch\b/.test(text) ||
-    /\b(open|create|prepare)\s+(a\s+)?(?:pr|pull request)\b|\bpr this\b/.test(text)
-  ) {
+  if (hasBranchDirective(text) || hasPrDirective(text)) {
     return "branch";
   }
   if (/\b(save|checkpoint|commit this locally|commit locally|local checkpoint)\b/.test(text)) {
     return "checkpoint";
   }
-  if (/\b(release this|cut v?\d+\.\d+\.\d+|version bump|bump version|prepare changelog|changelog|release notes?)\b/.test(text)) {
+  if (hasReleaseDirective(text)) {
     return "release";
   }
   if (/\b(get this in|ship|finish|land|merge-ready|ready to merge|merge this|merge-ready|ready-pr)\b/.test(text)) {
@@ -353,10 +371,10 @@ function classifyLifecycle(value, explicitLifecycle) {
   if (hasYoloDirective(text)) {
     return "yolo";
   }
-  if (/\b(multiple agents|separate features|worktrees|do not step on each other|fanout)\b/.test(text)) {
+  if (hasFanoutDirective(text) || hasWorktreeDirective(text)) {
     return "fanout";
   }
-  if (/\b(do everything|everything mode|fully manage|manage all git|handle all git|all the git)\b/.test(text)) {
+  if (hasEverythingDirective(text)) {
     return "everything";
   }
   if (/\b(finish|land|merge back|merge it|return to main|switch back to main)\b/.test(text)) {
@@ -370,6 +388,160 @@ function classifyLifecycle(value, explicitLifecycle) {
 
 function hasYoloDirective(text) {
   return /(?:^|\s)(?:\[\$auto-git\]|\$auto-git|auto-git)\s+yolo\b/.test(text);
+}
+
+function hasFollowUpThreadDirective(text) {
+  return /\b(follow-up|follow up|next)\s+(chat|thread|codex chat)\b|\bcreate\s+(a\s+)?(chat|thread)\b/.test(text);
+}
+
+function hasReleaseDirective(text) {
+  return /\b(release this|release\b|cut v?\d+\.\d+\.\d+|version bump|bump version|prepare changelog|changelog|release notes?)\b/.test(
+    text
+  );
+}
+
+function hasEverythingDirective(text) {
+  return /\b(do everything|everything mode|fully manage|manage all git|handle all git|all the git|everything)\b/.test(text);
+}
+
+function hasSyncDirective(text) {
+  return /\b(push|sync|sync with main|keep remote latest|publish this branch)\b/.test(text);
+}
+
+function hasLandDirective(text) {
+  return /\b(finish|land|merge back|merge it|return to main|switch back to main)\b/.test(text);
+}
+
+function hasPrDirective(text) {
+  return /\b(open|create|prepare)\s+(a\s+)?(?:pr|pull request)\b|\bpr this\b/.test(text);
+}
+
+function hasWorktreeDirective(text) {
+  return /\bworktree(s)?\b/.test(text);
+}
+
+function hasBranchDirective(text) {
+  return /\b(make|create|start|put)\s+(a\s+)?branch\b|\bbranch this\b|\bput this on a branch\b/.test(text);
+}
+
+function hasFanoutDirective(text) {
+  return /\b(multiple agents|separate features|do not step on each other|fanout)\b/.test(text);
+}
+
+function hasCheckpointDirective(text) {
+  return /\b(save|checkpoint|commit this locally|commit locally|local checkpoint)\b/.test(text);
+}
+
+function normalizedDecisionIntent(value, run) {
+  const text = String(value ?? "").toLowerCase();
+  if (hasYoloDirective(text) || run?.lifecycle === "yolo") return "yolo";
+  if (hasReleaseDirective(text) || run?.intent === "release") return "release";
+  if (hasEverythingDirective(text) || run?.lifecycle === "everything") return "everything";
+  if (hasSyncDirective(text) || run?.lifecycle === "sync") return "sync";
+  if (hasLandDirective(text) || run?.lifecycle === "land") return "land";
+  if (hasPrDirective(text)) return "PR";
+  if (hasWorktreeDirective(text)) return "worktree";
+  if (hasBranchDirective(text) || run?.intent === "branch") return "branch";
+  if (hasFanoutDirective(text) || run?.lifecycle === "fanout" || hasFollowUpThreadDirective(text)) return "fanout";
+  if (run?.intent === "merge") return "merge";
+  if (hasCheckpointDirective(text) || run?.intent === "checkpoint") return "checkpoint";
+  return "inconclusive";
+}
+
+function selectedDecisionWorkflow(value, run, normalizedIntent) {
+  const text = String(value ?? "").toLowerCase();
+  if (hasFollowUpThreadDirective(text)) return "follow-up-thread";
+  if (normalizedIntent === "release") return "release";
+  if (normalizedIntent === "fanout") return "fanout";
+  if (
+    ["branch", "worktree", "PR", "merge", "land", "everything", "yolo"].includes(normalizedIntent) ||
+    shouldUseCoordinatedWorkflow(run)
+  ) {
+    return "coordinated-branch-worktree";
+  }
+  return "local-review";
+}
+
+function completionGatesForDecision(normalizedIntent, selectedWorkflow) {
+  if (selectedWorkflow === "follow-up-thread") {
+    return ["thread-handoff-evidence", "ledger-finish"];
+  }
+  if (selectedWorkflow === "release") {
+    return ["release-metadata-commit", "verification", "release-preflight", "branch-pushed-before-tag", "ledger-finish"];
+  }
+  if (selectedWorkflow === "fanout") {
+    return ["isolated-worktrees", "commit-by-intent-per-worktree", "verification", "handoff-or-return-to-base", "ledger-finish"];
+  }
+  if (selectedWorkflow === "coordinated-branch-worktree") {
+    const gates = ["isolated-branch-or-worktree", "commit-by-intent", "verification", "branch-pushed", "return-to-base", "ledger-finish"];
+    if (["branch", "PR", "merge", "land", "everything", "yolo"].includes(normalizedIntent)) {
+      gates.splice(4, 0, "pr-handoff-or-merge-evidence");
+    }
+    if (normalizedIntent === "yolo") {
+      gates.splice(gates.length - 1, 0, "release-preflight-before-release-action");
+    }
+    return gates;
+  }
+  if (normalizedIntent === "sync") {
+    return ["commit-by-intent", "verification", "branch-pushed", "ledger-finish"];
+  }
+  if (normalizedIntent === "inconclusive") {
+    return ["manual-routing-confirmation", "ledger-finish"];
+  }
+  return ["commit-by-intent", "working-tree-clean", "ledger-finish"];
+}
+
+function decisionReason(normalizedIntent, selectedWorkflow) {
+  if (normalizedIntent === "yolo") return "Matched an explicit Auto Git YOLO directive.";
+  if (normalizedIntent === "release") return "Matched release wording; release preflight is required before release completion.";
+  if (selectedWorkflow === "follow-up-thread") return "Matched follow-up chat or thread handoff wording.";
+  if (normalizedIntent === "everything") return "Matched everything authority wording.";
+  if (normalizedIntent === "sync") return "Matched sync or push wording.";
+  if (normalizedIntent === "land") return "Matched land or return-to-main wording.";
+  if (["branch", "worktree", "PR"].includes(normalizedIntent)) return "Matched isolated branch, worktree, or PR wording.";
+  if (normalizedIntent === "fanout") return "Matched fanout or multi-worktree wording.";
+  if (normalizedIntent === "checkpoint") return "Matched local checkpoint wording.";
+  return "No explicit Auto Git lifecycle wording matched.";
+}
+
+function actionableTurnSummary(normalizedIntent, selectedWorkflow) {
+  if (selectedWorkflow === "follow-up-thread") return "follow-up thread request";
+  if (normalizedIntent === "PR") return "pull request request";
+  if (normalizedIntent === "inconclusive") return "inconclusive request";
+  return `${normalizedIntent} request`;
+}
+
+function worktreePathClass(snapshot) {
+  const worktreeLines = snapshot.worktrees ?? [];
+  const worktreePaths = worktreeLines.filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
+  const index = worktreePaths.indexOf(snapshot.repo.root);
+  const base = index === -1 ? "unknown" : index === 0 ? "primary-checkout" : "linked-worktree";
+  return snapshot.topology.detached ? `detached-${base}` : base;
+}
+
+function buildDecisionReceipt(snapshot, run, task, generatedAt) {
+  const normalizedIntentLabel = normalizedDecisionIntent(task, run);
+  const selectedWorkflowMode = selectedDecisionWorkflow(task, run, normalizedIntentLabel);
+  return {
+    schemaVersion: 1,
+    generatedAt,
+    actionableTurn: {
+      source: "task-argument",
+      summary: actionableTurnSummary(normalizedIntentLabel, selectedWorkflowMode),
+      fingerprint: sha256(String(task ?? ""), 16)
+    },
+    normalizedIntentLabel,
+    selectedWorkflowMode,
+    completionGates: completionGatesForDecision(normalizedIntentLabel, selectedWorkflowMode),
+    reason: decisionReason(normalizedIntentLabel, selectedWorkflowMode),
+    context: {
+      activeBranch: snapshot.topology.branch ?? "detached",
+      worktreePathClass: worktreePathClass(snapshot),
+      baseBranch: defaultBaseBranch(snapshot)
+    },
+    releasePreflightRequired: normalizedIntentLabel === "release",
+    threadHandoffRequired: selectedWorkflowMode === "follow-up-thread"
+  };
 }
 
 function repoSlug(repoRoot) {
@@ -854,7 +1026,58 @@ function normalizeRun(run) {
     stagedFingerprint: typeof run.stagedFingerprint === "string" ? run.stagedFingerprint : undefined,
     commits: Array.isArray(run.commits) ? run.commits.filter((commit) => typeof commit === "string").slice(0, 200) : [],
     verification: normalizeVerification(run.verification),
-    pr: normalizePr(run.pr)
+    pr: normalizePr(run.pr),
+    decisionReceipt: normalizeDecisionReceipt(run.decisionReceipt)
+  };
+}
+
+function normalizeDecisionReceipt(receipt) {
+  if (!receipt || typeof receipt !== "object") return undefined;
+  const normalizedIntentLabel = DECISION_INTENT_VALUES.includes(receipt.normalizedIntentLabel)
+    ? receipt.normalizedIntentLabel
+    : "inconclusive";
+  const selectedWorkflowMode = DECISION_WORKFLOW_VALUES.includes(receipt.selectedWorkflowMode)
+    ? receipt.selectedWorkflowMode
+    : "local-review";
+  const completionGates = Array.isArray(receipt.completionGates)
+    ? receipt.completionGates.filter((gate) => typeof gate === "string" && !looksSecretish(gate)).slice(0, 20)
+    : completionGatesForDecision(normalizedIntentLabel, selectedWorkflowMode);
+  const actionableTurn =
+    receipt.actionableTurn && typeof receipt.actionableTurn === "object"
+      ? {
+          source: receipt.actionableTurn.source === "task-argument" ? "task-argument" : "unknown",
+          summary:
+            typeof receipt.actionableTurn.summary === "string" && !looksSecretish(receipt.actionableTurn.summary)
+              ? receipt.actionableTurn.summary.slice(0, 80)
+              : actionableTurnSummary(normalizedIntentLabel, selectedWorkflowMode),
+          fingerprint:
+            typeof receipt.actionableTurn.fingerprint === "string" && /^[a-f0-9]{8,64}$/i.test(receipt.actionableTurn.fingerprint)
+              ? receipt.actionableTurn.fingerprint
+              : undefined
+        }
+      : undefined;
+  return {
+    schemaVersion: 1,
+    generatedAt: typeof receipt.generatedAt === "string" ? receipt.generatedAt : undefined,
+    actionableTurn,
+    normalizedIntentLabel,
+    selectedWorkflowMode,
+    completionGates,
+    reason:
+      typeof receipt.reason === "string" && !looksSecretish(receipt.reason)
+        ? receipt.reason.slice(0, 200)
+        : decisionReason(normalizedIntentLabel, selectedWorkflowMode),
+    context:
+      receipt.context && typeof receipt.context === "object"
+        ? {
+            activeBranch: typeof receipt.context.activeBranch === "string" ? receipt.context.activeBranch.slice(0, 120) : undefined,
+            worktreePathClass:
+              typeof receipt.context.worktreePathClass === "string" ? receipt.context.worktreePathClass.slice(0, 80) : undefined,
+            baseBranch: typeof receipt.context.baseBranch === "string" ? receipt.context.baseBranch.slice(0, 120) : undefined
+          }
+        : undefined,
+    releasePreflightRequired: Boolean(receipt.releasePreflightRequired),
+    threadHandoffRequired: Boolean(receipt.threadHandoffRequired)
   };
 }
 
@@ -978,6 +1201,7 @@ function mutateLedger(snapshot, ledger, options, updatedAt) {
       claimedAt: existing?.claimedAt ?? updatedAt,
       ...currentRunBasis(snapshot, options, updatedAt, leaseInfo)
     };
+    run.decisionReceipt = buildDecisionReceipt(snapshot, run, options.claimRun, updatedAt);
     runs = upsertRun(runs, run);
     changed = true;
   }
@@ -1155,7 +1379,8 @@ function publicRun(run, state) {
     stagedFingerprint: run.stagedFingerprint,
     commits: run.commits,
     verification: run.verification,
-    pr: run.pr
+    pr: run.pr,
+    decisionReceipt: run.decisionReceipt
   };
 }
 

@@ -45,9 +45,14 @@ an already-established Auto Git mode for that action.
    must not fail the whole snapshot. Auto Git state must not store raw diffs,
    file contents, environment values, tokens, npmrc content, or full command
    output.
+   When a run is claimed, `auto-git start`/`auto-git snapshot` also attach a
+   small `decisionReceipt` to the ledger run. The receipt records the sanitized
+   routing summary, normalized intent label, selected workflow, required gates,
+   branch/worktree context, and release/thread handoff requirements without
+   storing raw transcript text.
 
-2. Use the snapshot's `workflowMode`, `occupancy`, `recommendedAction`, and
-   `prReadiness` before mutating:
+2. Use the snapshot's `workflowMode`, `occupancy`, `recommendedAction`,
+   `decisionReceipt`, and `prReadiness` before mutating:
    - if `occupancy.status` is `occupied`, create or reuse an isolated
      worktree/branch instead of editing the occupied checkout
    - if `occupancy.status` is `stale` or `abandoned-candidate`, inspect the
@@ -208,8 +213,9 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
 
 - `auto-git start --cwd "$PWD" --task "<request>"`
   - wraps snapshot and `--claim-run`
-  - emits `workflowMode`, `recommendedAction`, run id, PR readiness, and the
-    suggested worktree command for coordinated branch work
+  - emits `workflowMode`, `recommendedAction`, run id, PR readiness,
+    `decisionReceipt`, and the suggested worktree command for coordinated
+    branch work
 - `auto-git snapshot --cwd "$PWD" --write-state`
   - snapshots topology, dirty fingerprints, Git index write capability, root
     and `examples/**/.async/run.lock` state, package-manager hints, and the
@@ -221,9 +227,11 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
     a run removes the live lease and keeps a completion receipt under
     `~/.async/locks/auto-git/history/`
   - supports `--claim-run <task>`, `--intent <name>`,
-    `--lifecycle <checkpoint|sync|land|fanout>`,
+    `--lifecycle <checkpoint|sync|land|fanout|everything|yolo>`,
     `--heartbeat-run <run-id>`, `--complete-run <run-id>`, and
     `--record-pr <run-id> --pr-url <url> [--pr-number <n>]`
+  - stores a sanitized decision receipt on claimed runs so later helpers and
+    chats can inspect the original route without reading raw prompts
   - emits `occupancy.status`, `handoffs.openPrs`, `recommendedAction`, and
     `prReadiness` so later chats can continue, supersede, or hand off work
   - classifies inaccessible PIDs with optional `ps` metadata; an unrelated
@@ -238,7 +246,8 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
     process-tree diagnostics
 - `auto-git ledger list|show|stale|handoffs --cwd "$PWD"`
   - prints active runs, stale runs, completed runs, PR handoffs, branches,
-    worktrees, leases, and verification state from safe ledger metadata
+    worktrees, leases, decision receipts, and verification state from safe
+    ledger metadata
   - never deletes ledger entries
 - `auto-git finish --cwd "$PWD" --run-id "<id>" [--complete]`
   - checks dirty state, HEAD/upstream, active run locks, PR readiness, and

@@ -134,6 +134,7 @@ function buildReceipt(payload, options) {
   const snapshot = payload.snapshot;
   const runId = snapshot.ledger?.currentRunId;
   const run = findRun(snapshot, runId);
+  const decisionReceipt = run?.decisionReceipt;
   return {
     schemaVersion: 1,
     tool: "auto-git-start",
@@ -156,10 +157,10 @@ function buildReceipt(payload, options) {
     },
     recommendedAction: snapshot.recommendedAction,
     prReadiness: snapshot.prReadiness,
+    decisionReceipt,
     worktreeSuggestion: worktreeSuggestion(snapshot, run),
     nextSteps: nextSteps(snapshot, run),
-    stateWrite: payload.stateWrite,
-    task: options.task
+    stateWrite: payload.stateWrite
   };
 }
 
@@ -170,6 +171,14 @@ function printText(receipt) {
   console.log(`runId: ${receipt.runId ?? "none"}`);
   console.log(`occupancy: ${receipt.occupancy.status}`);
   console.log(`recommendedAction: ${receipt.recommendedAction}`);
+  if (receipt.decisionReceipt) {
+    console.log(`decisionIntent: ${receipt.decisionReceipt.normalizedIntentLabel}`);
+    console.log(`decisionWorkflow: ${receipt.decisionReceipt.selectedWorkflowMode}`);
+    console.log(`decisionGates: ${receipt.decisionReceipt.completionGates.join(", ")}`);
+    console.log(`releasePreflightRequired: ${receipt.decisionReceipt.releasePreflightRequired}`);
+    console.log(`threadHandoffRequired: ${receipt.decisionReceipt.threadHandoffRequired}`);
+    console.log(`decisionReason: ${receipt.decisionReceipt.reason}`);
+  }
   if (receipt.worktreeSuggestion) {
     console.log(`suggestedBranch: ${receipt.worktreeSuggestion.branch}`);
     console.log(`suggestedWorktree: ${receipt.worktreeSuggestion.path}`);

@@ -529,6 +529,91 @@ test("auto-git controller scripts start, list, and block unsafe finish", async (
   }
 });
 
+test("auto-git start writes sanitized decision receipts", async () => {
+  const repo = await createFixtureRepo("auto-git-start-receipts-");
+  const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-start-receipts-state-"));
+  try {
+    const cases = [
+      {
+        task: "auto-git yolo",
+        runId: "receipt-yolo",
+        normalizedIntentLabel: "yolo",
+        selectedWorkflowMode: "coordinated-branch-worktree",
+        gates: ["verification", "pr-handoff-or-merge-evidence"],
+        releasePreflightRequired: false,
+        threadHandoffRequired: false
+      },
+      {
+        task: "everything release",
+        runId: "receipt-release",
+        normalizedIntentLabel: "release",
+        selectedWorkflowMode: "release",
+        gates: ["release-preflight", "branch-pushed-before-tag"],
+        releasePreflightRequired: true,
+        threadHandoffRequired: false
+      },
+      {
+        task: "sync with main",
+        runId: "receipt-sync",
+        normalizedIntentLabel: "sync",
+        selectedWorkflowMode: "local-review",
+        gates: ["branch-pushed"],
+        releasePreflightRequired: false,
+        threadHandoffRequired: false
+      },
+      {
+        task: "create a follow-up chat after ADR 1; do not store this raw transcript",
+        runId: "receipt-follow-up",
+        normalizedIntentLabel: "fanout",
+        selectedWorkflowMode: "follow-up-thread",
+        gates: ["thread-handoff-evidence"],
+        releasePreflightRequired: false,
+        threadHandoffRequired: true,
+        forbidden: "do not store this raw transcript"
+      },
+      {
+        task: "please look at this when you have a chance",
+        runId: "receipt-inconclusive",
+        normalizedIntentLabel: "inconclusive",
+        selectedWorkflowMode: "local-review",
+        gates: ["manual-routing-confirmation"],
+        releasePreflightRequired: false,
+        threadHandoffRequired: false
+      }
+    ];
+
+    for (const item of cases) {
+      const result = script("auto-git-start.mjs", repo, ["--task", item.task, "--run-id", item.runId, "--json"], {
+        AUTO_GIT_STATE_HOME: stateHome
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      const payload = JSON.parse(result.stdout);
+      const receipt = payload.decisionReceipt;
+      assert.equal(receipt.normalizedIntentLabel, item.normalizedIntentLabel);
+      assert.equal(receipt.selectedWorkflowMode, item.selectedWorkflowMode);
+      assert.equal(receipt.releasePreflightRequired, item.releasePreflightRequired);
+      assert.equal(receipt.threadHandoffRequired, item.threadHandoffRequired);
+      assert.equal(receipt.actionableTurn.source, "task-argument");
+      assert.match(receipt.actionableTurn.fingerprint, /^[a-f0-9]{16}$/);
+      for (const gate of item.gates) assert.ok(receipt.completionGates.includes(gate), `${item.runId} includes ${gate}`);
+      assert.equal(Object.hasOwn(payload, "task"), false);
+      if (item.forbidden) assert.doesNotMatch(JSON.stringify(receipt), new RegExp(escapeRegExp(item.forbidden)));
+
+      const ledger = JSON.parse(await readFile(path.join(stateHome, "repos", payload.repo.hash, "ledger.json"), "utf8"));
+      const ledgerRun = ledger.runs.find((run) => run.id === item.runId);
+      assert.equal(ledgerRun.decisionReceipt.normalizedIntentLabel, item.normalizedIntentLabel);
+    }
+
+    const ledgerResult = script("auto-git-ledger.mjs", repo, ["list", "--json"], { AUTO_GIT_STATE_HOME: stateHome });
+    assert.equal(ledgerResult.status, 0, ledgerResult.stderr || ledgerResult.stdout);
+    const ledgerPayload = JSON.parse(ledgerResult.stdout);
+    assert.ok(ledgerPayload.runs.some((run) => run.decisionReceipt?.selectedWorkflowMode === "follow-up-thread"));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("auto-git finish requires pushed branch and return to main for everything runs", async () => {
   const repo = await createFixtureRepo("auto-git-finish-main-");
   const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-remote-"));

@@ -49,6 +49,7 @@ Gist file mapping:
 
 - Detects repo root, branch, upstream, default branch, dirty state, and worktree topology before staging.
 - Uses a compact snapshot helper to detect Git index write capability, run locks, package-manager hints, ledger occupancy, PR handoffs, PR readiness, and the recommended verification profile before expensive commands.
+- Writes a sanitized start decision receipt on claimed runs, including the normalized route, selected workflow, required gates, branch/worktree context, release-preflight requirement, and follow-up thread handoff requirement without storing raw transcript text.
 - Supports two workflows: local review for single-chat code review and coordinated branch for multi-chat conflicts, PR handoffs, experiments, and fanouts.
 - Tracks cooperative run state and PR handoffs under `~/.async/auto-git/v1/repos/<repo-hash>/ledger.json`, with live leases under `~/.async/locks/auto-git/`, without storing raw diffs, prompts, full command output, environment dumps, or secrets.
 - Commits by change intent instead of making one vague bulk commit.
@@ -323,6 +324,7 @@ auto-git snapshot --cwd "$PWD" --write-state --record-pr "<run-id>" --pr-url "ht
 ```
 
 The snapshot emits `occupancy`, `handoffs.openPrs`, `recommendedAction`, and `prReadiness` so future chats can continue, supersede, or merge by explicit instruction.
+Claimed runs also carry `decisionReceipt` in the snapshot and ledger. The receipt is the durable routing authority for follow-up helpers: it records a sanitized actionable-turn summary, normalized intent label, selected workflow, required completion gates, active branch/worktree context, and whether release preflight or thread handoff evidence is required.
 
 Controller helpers:
 

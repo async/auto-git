@@ -107,7 +107,8 @@ function publicRun(run, statusById) {
           recordedAt: run.verification.recordedAt
         }
       : undefined,
-    pr: run.pr
+    pr: run.pr,
+    decisionReceipt: run.decisionReceipt
   };
 }
 
@@ -166,7 +167,8 @@ function printText(receipt) {
   }
   for (const run of receipt.runs) {
     const pr = run.pr?.url ? ` pr=${run.pr.url}` : "";
-    console.log(`${run.id} status=${run.status} lifecycle=${run.lifecycle} intent=${run.intent} branch=${run.branch ?? "none"}${pr}`);
+    const decision = run.decisionReceipt?.normalizedIntentLabel ? ` decision=${run.decisionReceipt.normalizedIntentLabel}` : "";
+    console.log(`${run.id} status=${run.status} lifecycle=${run.lifecycle} intent=${run.intent}${decision} branch=${run.branch ?? "none"}${pr}`);
   }
 }
 
