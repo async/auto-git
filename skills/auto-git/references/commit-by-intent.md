@@ -222,6 +222,12 @@ Run the smallest meaningful check for each commit group when practical:
 
 If verification is too expensive per commit, run it before the final push/merge and say so in the receipt.
 
+`auto-git yolo`, `$auto-git yolo`, and `[$auto-git] yolo` change routing
+authority, not commit grouping. YOLO still requires commit-by-intent staging;
+do not fold unrelated features, fixes, docs, release metadata, or generated
+outputs into one commit merely because the lifecycle has merge and release
+authority.
+
 For expensive or environment-sensitive gates, prefer
 `auto-git gate --cwd "$PWD" --profile auto -- <command> [args...]`
 so the receipt separates environment failures from code failures and records

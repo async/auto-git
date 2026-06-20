@@ -139,6 +139,10 @@ function verificationMatchesCurrentCheckout(snapshot, run) {
   );
 }
 
+function isCompletionLifecycle(run) {
+  return run?.lifecycle === "everything" || run?.lifecycle === "yolo";
+}
+
 function git(cwd, args) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
 }
@@ -157,7 +161,7 @@ function branchCompletion(snapshot, run, cwd) {
     branch &&
       baseBranch &&
       branch !== baseBranch &&
-      (snapshot.workflowMode === "coordinated-branch" || run?.lifecycle === "everything")
+      (snapshot.workflowMode === "coordinated-branch" || isCompletionLifecycle(run))
   );
   const result = {
     required,
@@ -281,7 +285,7 @@ function mergeCheck(run, cwd, completion) {
 function handoffCheck(run, merge, completion) {
   const pr = prHandoff(run);
   const required = Boolean(
-    completion.required && (run?.lifecycle === "everything" || ["merge", "branch"].includes(run?.intent))
+    completion.required && (isCompletionLifecycle(run) || ["merge", "branch"].includes(run?.intent))
   );
   return {
     required,
@@ -327,7 +331,7 @@ function blockers(snapshot, run, options, completion, handoff) {
   if (lockPaths.length > 0) issues.push(`active Async run locks remain: ${lockPaths.join(", ")}`);
   if (
     snapshot.workflowMode === "coordinated-branch" &&
-    (["merge", "branch"].includes(run?.intent) || run?.lifecycle === "everything")
+    (["merge", "branch"].includes(run?.intent) || isCompletionLifecycle(run))
   ) {
     if (!verificationMatches(snapshot, run)) {
       issues.push("coordinated branch run lacks passing verification for its final branch HEAD");

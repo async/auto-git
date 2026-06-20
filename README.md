@@ -67,12 +67,21 @@ land/merge, and release. That mode still stops for safety gates such as
 secrets, destructive cleanup, failed verification, force pushes, remote tag
 movement, and missing release metadata.
 
-Done means cleaned up, not just committed: coordinated/everything branch work
-should push the completed branch with upstream tracking and switch back to main
-before the final receipt unless the user explicitly asks to stay on the branch.
-The finish receipt should also check PR handoff or pushed merge evidence and
-confirm the ledger update, so completed work is either handed off, integrated,
-or explicitly blocked.
+`auto-git yolo`, `$auto-git yolo`, and `[$auto-git] yolo` are stronger than
+ordinary `everything`: they require coordinated worktree/branch handling,
+commit-by-intent, verification gates, push/sync evidence, PR handoff or
+merge/land evidence, release-preflight and release handling when a release
+surface exists, return-to-main/default-branch evidence, and a completed ledger
+receipt before reporting done. YOLO still stops for secret exposure,
+destructive cleanup, force pushes, remote tag movement, failed verification,
+missing release metadata, unavailable auth, or ambiguous repo targets.
+
+Done means cleaned up, not just committed: coordinated/everything/yolo branch
+work should push the completed branch with upstream tracking and switch back to
+main before the final receipt unless the user explicitly asks to stay on the
+branch. The finish receipt should also check PR handoff or pushed merge
+evidence and confirm the ledger update, so completed work is either handed off,
+integrated, or explicitly blocked.
 When finish runs after switching back to main, the ledger should still preserve
 the completed branch and head for later handoff.
 

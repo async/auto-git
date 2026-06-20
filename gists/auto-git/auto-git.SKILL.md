@@ -97,13 +97,14 @@ Legacy lifecycle modes still exist:
 | `land` | User explicitly asks to finish, merge, or return to main | Commit by intent, push/verify as needed, then merge only because the user explicitly requested it |
 | `fanout` | User asks for multiple agents/features/worktrees | Detect or create isolated worktrees/branches, then commit by intent in each |
 | `everything` | User says "do everything", "fully manage this", or asks Auto Git to own git/commit/by-feature/merge/release end to end | Start from workflow selection, split commits by feature, verify, sync, PR/land/release when explicitly authorized, and stop only at safety gates |
+| `yolo` | User says `auto-git yolo`, `$auto-git yolo`, or `[$auto-git] yolo` | Everything authority plus coordinated worktree/branch, merge/land, release-preflight/release handling, return-to-main, and ledger finish evidence |
 
 Workflow selection:
 
 | Workflow | Use when | Default behavior |
 | --- | --- | --- |
 | `local-review` | The user is in one chat and asks to save/checkpoint/commit/review work, or intent is unclear | Stay in the current checkout/branch and commit by change intent |
-| `coordinated-branch` | The user asks for branch/PR/fanout/worktrees/experiment/get-this-in/ship, or another run occupies the checkout | Use an isolated branch/worktree, ledger leases, verification records, and PR handoff when requested |
+| `coordinated-branch` | The user asks for branch/PR/fanout/worktrees/experiment/get-this-in/ship/yolo work, or another run occupies the checkout | Use an isolated branch/worktree, ledger leases, verification records, and PR handoff when requested |
 
 Plain implementation wording such as "fix this", "add this", or "implement
 this plan" does not by itself force the coordinated branch workflow. Treat it
@@ -152,6 +153,21 @@ Everything mode still stops for safety gates: secrets, unclear intent
 boundaries, destructive cleanup, force pushes, remote release tag movement,
 failed verification, missing release metadata, or any merge/release conflict
 that needs a human decision.
+
+## YOLO Mode
+
+When the user says `auto-git yolo`, `$auto-git yolo`, or `[$auto-git] yolo`,
+treat it as a first-class routing directive that is stronger than
+`everything`. YOLO means everything mode plus an explicit coordinated
+branch/worktree path, merge or land handling, release-preflight and release
+handling when the repo has a release surface, return-to-main/default-branch
+evidence, and a completed ledger receipt before reporting done.
+
+YOLO must still commit by intent and run verification before completion. It
+does not weaken safety gates: stop for secret exposure, destructive cleanup,
+force pushes, remote tag movement, unresolved conflicts, failed verification,
+missing release metadata, unavailable authentication, ambiguous target repos,
+or follow-up thread handoff that cannot be created or recorded.
 
 Read `references/git-topology-lifecycles.md` for topology detection, worktree handling, and push/merge flows. Read `references/commit-by-intent.md` whenever there is more than one obvious change group, many unstaged files, mixed staged/unstaged work, or any unclear commit boundary.
 
@@ -227,8 +243,8 @@ PATH, use the installed skill's `scripts/*.mjs` helper paths as a fallback.
 - `auto-git finish --cwd "$PWD" --run-id "<id>" [--complete]`
   - checks dirty state, HEAD/upstream, active run locks, PR readiness, and
     verification against current HEAD
-  - blocks completion for coordinated/everything branch work until the branch
-    is pushed upstream and the checkout is switched back to main/default
+  - blocks completion for coordinated/everything/yolo branch work until the
+    branch is pushed upstream and the checkout is switched back to main/default
   - checks whether there is a recorded PR handoff or pushed merge evidence, and
     whether the ledger update actually completed
   - preserves the completed branch/head in the ledger even when completion is

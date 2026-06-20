@@ -413,7 +413,10 @@ test("auto-git snapshot classifies user intent for local review and coordinated 
     ["sync this branch", "unknown", "sync"],
     ["land this branch", "merge", "land"],
     ["fanout these worktrees", "unknown", "fanout"],
-    ["auto-git do everything", "unknown", "everything"]
+    ["auto-git do everything", "unknown", "everything"],
+    ["auto-git yolo", "merge", "yolo"],
+    ["$auto-git yolo", "merge", "yolo"],
+    ["[$auto-git] yolo", "merge", "yolo"]
   ];
 
   for (const [phrase, intent, lifecycle] of cases) {
@@ -490,11 +493,24 @@ test("auto-git controller scripts start, list, and block unsafe finish", async (
     assert.equal(payload.lifecycle, "everything");
     assert.equal(payload.workflowMode, "coordinated-branch");
 
+    result = script("auto-git-start.mjs", repo, ["--task", "[$auto-git] yolo", "--run-id", "yolo-run", "--json"], {
+      AUTO_GIT_STATE_HOME: stateHome
+    });
+    assert.equal(result.status, 0, result.stderr);
+    payload = JSON.parse(result.stdout);
+    assert.equal(payload.lifecycle, "yolo");
+    assert.equal(payload.intent, "merge");
+    assert.equal(payload.workflowMode, "coordinated-branch");
+    assert.match(payload.nextSteps.join("\n"), /YOLO mode/);
+    assert.match(payload.nextSteps.join("\n"), /release-preflight/);
+    assert.match(payload.nextSteps.join("\n"), /force-pushes/);
+
     result = script("auto-git-ledger.mjs", repo, ["list", "--json"], { AUTO_GIT_STATE_HOME: stateHome });
     assert.equal(result.status, 0, result.stderr);
     payload = JSON.parse(result.stdout);
-    assert.equal(payload.ledger.runCount, 2);
+    assert.equal(payload.ledger.runCount, 3);
     assert.ok(payload.runs.some((run) => run.id === "everything-run"));
+    assert.ok(payload.runs.some((run) => run.id === "yolo-run" && run.lifecycle === "yolo"));
 
     await writeProjectFile(repo, "src/dirty.js", "export const dirty = true;\n");
     result = script(
@@ -585,7 +601,7 @@ test("auto-git finish requires pushed branch and return to main for everything r
   }
 });
 
-test("auto-git finish accepts pushed merge evidence without PR handoff", async () => {
+test("auto-git finish accepts pushed yolo merge evidence without PR handoff", async () => {
   const repo = await createFixtureRepo("auto-git-finish-merge-");
   const remote = await mkdtemp(path.join(tmpdir(), "auto-git-finish-merge-remote-"));
   const stateHome = await mkdtemp(path.join(tmpdir(), "auto-git-finish-merge-state-"));
@@ -599,7 +615,7 @@ test("auto-git finish accepts pushed merge evidence without PR handoff", async (
     const featureHead = git(repo, ["rev-parse", "HEAD"]);
     git(repo, ["push", "-u", "origin", "codex/finish-merged"]);
 
-    snapshot(repo, ["--write-state", "--claim-run", "auto-git do everything", "--run-id", "merge-run"], {
+    snapshot(repo, ["--write-state", "--claim-run", "[$auto-git] yolo", "--run-id", "merge-run"], {
       AUTO_GIT_STATE_HOME: stateHome
     });
     snapshot(repo, ["--write-state", "--record-verification", "pnpm run verify", "--exit-code", "0", "--run-id", "merge-run"], {

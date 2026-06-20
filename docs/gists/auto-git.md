@@ -72,6 +72,7 @@ Legacy lifecycle modes still exist:
 | `land` | You explicitly want the branch finished and merged | Commit, push, verify, merge to main, switch back to main |
 | `fanout` | You have multiple features or agents | Detect/create isolated worktrees and branch boundaries |
 | `everything` | You want Auto Git to fully manage git, commits by feature, merge, and release | Start-to-finish ownership with safety gates |
+| `yolo` | You say `auto-git yolo`, `$auto-git yolo`, or `[$auto-git] yolo` | Everything plus coordinated worktree/branch, merge/land, release handling, return-to-main, and ledger finish evidence |
 
 If mode is unclear, Auto Git should default to `checkpoint`.
 
@@ -82,7 +83,7 @@ Auto Git supports two workflows:
 | Workflow | Use when | Default result |
 | --- | --- | --- |
 | `local-review` | You are working in one chat and want to review code as it evolves | Commit by intent in the current checkout/branch |
-| `coordinated-branch` | Multiple chats/features may collide, a checkout is occupied, or you ask for branch, PR, fanout, experiment, get-this-in, ship, or merge-ready work | Isolated branch/worktree, ledger lease, verification records, PR handoff when requested |
+| `coordinated-branch` | Multiple chats/features may collide, a checkout is occupied, or you ask for branch, PR, fanout, experiment, get-this-in, ship, merge-ready work, or yolo | Isolated branch/worktree, ledger lease, verification records, PR handoff when requested |
 
 Plain implementation wording like "fix this", "add this", or "implement this
 plan" stays in local-review workflow unless paired with branch/PR/get-this-in,
@@ -123,6 +124,21 @@ the other lifecycles:
 Everything mode still stops for secrets, unclear commit boundaries, destructive
 cleanup, force pushes, failed verification, missing release metadata, or remote
 tag movement without explicit approval.
+
+## YOLO Mode
+
+`auto-git yolo`, `$auto-git yolo`, and `[$auto-git] yolo` are explicit
+first-class routing directives. YOLO is stronger than `everything`: it asks for
+everything authority plus coordinated branch/worktree isolation, merge or land
+handling, release-preflight and release handling when the repo has a release
+surface, push/sync evidence, return-to-main/default-branch evidence, and a
+completed ledger receipt before Auto Git reports done.
+
+YOLO does not bypass safety gates. Stop for secret exposure, destructive
+cleanup, force-pushes, remote tag movement, unresolved conflicts, failed
+verification, missing release metadata, unavailable authentication, ambiguous
+target repositories, or follow-up thread handoffs that cannot be created or
+recorded.
 
 ## Ledger States
 
@@ -317,10 +333,10 @@ auto-git finish --cwd "$PWD" --run-id "<id>" --complete
 auto-git release-preflight --cwd "$PWD" --require-verification
 ```
 
-`auto-git-finish.mjs` blocks coordinated/everything completion until the branch
-is pushed upstream or merged into a pushed base branch, the checkout is switched
-back to main/default, a PR handoff or merge is recorded, and the ledger update
-succeeds.
+`auto-git-finish.mjs` blocks coordinated/everything/yolo completion until the
+branch is pushed upstream or merged into a pushed base branch, the checkout is
+switched back to main/default, a PR handoff or merge is recorded, and the
+ledger update succeeds.
 
 Completion from main/default still preserves the completed branch/head in the
 ledger so later chats can find the exact handoff.

@@ -24,12 +24,14 @@ import {
 const SCHEMA_VERSION = 3;
 const DEFAULT_LEASE_TTL_MS = 45 * 60 * 1000;
 const PACKAGE_MANAGER_HINT_THREAD = "019ebdd4-9cff-76c2-bf71-a3bb38ad1592";
+const INTENT_VALUES = ["merge", "branch", "experiment", "checkpoint", "release", "unknown"];
+const LIFECYCLE_VALUES = ["checkpoint", "sync", "land", "fanout", "everything", "yolo"];
 
 function usage() {
   return [
     "Usage: auto-git-snapshot.mjs [--cwd <repo>] [--write-state]",
     "       [--claim-run <task>] [--run-id <id>] [--intent <name>]",
-    "       [--lifecycle <checkpoint|sync|land|fanout|everything>]",
+    "       [--lifecycle <checkpoint|sync|land|fanout|everything|yolo>]",
     "       [--heartbeat-run <run-id>] [--complete-run <run-id>]",
     "       [--record-pr <run-id> --pr-url <url> [--pr-number <n>]]",
     "       [--lease-ttl-ms <n>]",
@@ -170,12 +172,12 @@ function parseArgs(argv) {
   }
   if (
     parsed.intent !== undefined &&
-    !["merge", "branch", "experiment", "checkpoint", "release", "unknown"].includes(parsed.intent)
+    !INTENT_VALUES.includes(parsed.intent)
   ) {
     throw new Error("--intent must be one of merge, branch, experiment, checkpoint, release, or unknown.");
   }
-  if (parsed.lifecycle !== undefined && !["checkpoint", "sync", "land", "fanout", "everything"].includes(parsed.lifecycle)) {
-    throw new Error("--lifecycle must be one of checkpoint, sync, land, fanout, or everything.");
+  if (parsed.lifecycle !== undefined && !LIFECYCLE_VALUES.includes(parsed.lifecycle)) {
+    throw new Error("--lifecycle must be one of checkpoint, sync, land, fanout, everything, or yolo.");
   }
   if (parsed.recordPr !== undefined && parsed.prUrl === undefined) {
     throw new Error("--record-pr requires --pr-url <url>.");
@@ -321,6 +323,9 @@ function sanitizeTaskSlug(value) {
 function classifyIntent(value, explicitIntent) {
   if (explicitIntent) return explicitIntent;
   const text = String(value ?? "").toLowerCase();
+  if (hasYoloDirective(text)) {
+    return "merge";
+  }
   if (/\b(testing something|experimenting|experiment|try this|trying this|not sure|unsure|spike|prototype)\b/.test(text)) {
     return "experiment";
   }
@@ -345,6 +350,9 @@ function classifyIntent(value, explicitIntent) {
 function classifyLifecycle(value, explicitLifecycle) {
   if (explicitLifecycle) return explicitLifecycle;
   const text = String(value ?? "").toLowerCase();
+  if (hasYoloDirective(text)) {
+    return "yolo";
+  }
   if (/\b(multiple agents|separate features|worktrees|do not step on each other|fanout)\b/.test(text)) {
     return "fanout";
   }
@@ -358,6 +366,10 @@ function classifyLifecycle(value, explicitLifecycle) {
     return "sync";
   }
   return "checkpoint";
+}
+
+function hasYoloDirective(text) {
+  return /(?:^|\s)(?:\[\$auto-git\]|\$auto-git|auto-git)\s+yolo\b/.test(text);
 }
 
 function repoSlug(repoRoot) {
@@ -820,10 +832,10 @@ function normalizeRun(run) {
   return {
     id,
     taskSlug: sanitizeTaskSlug(run.taskSlug),
-    intent: ["merge", "branch", "experiment", "checkpoint", "release", "unknown"].includes(run.intent)
+    intent: INTENT_VALUES.includes(run.intent)
       ? run.intent
       : "unknown",
-    lifecycle: ["checkpoint", "sync", "land", "fanout", "everything"].includes(run.lifecycle)
+    lifecycle: LIFECYCLE_VALUES.includes(run.lifecycle)
       ? run.lifecycle
       : "checkpoint",
     status: ["active", "completed"].includes(run.status) ? run.status : "active",
@@ -1202,7 +1214,7 @@ function attachCoordination(snapshot, ledger, repoDir, currentRunId) {
 
 function shouldUseCoordinatedWorkflow(run) {
   return Boolean(
-    run && (["merge", "branch", "experiment"].includes(run.intent) || ["fanout", "everything"].includes(run.lifecycle))
+    run && (["merge", "branch", "experiment"].includes(run.intent) || ["fanout", "everything", "yolo"].includes(run.lifecycle))
   );
 }
 

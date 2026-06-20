@@ -7,7 +7,7 @@ const SNAPSHOT_SCRIPT = new URL("./auto-git-snapshot.mjs", import.meta.url);
 function usage() {
   return [
     "Usage: auto-git-start.mjs [--cwd <repo>] [--task <text>] [--run-id <id>]",
-    "       [--intent <name>] [--lifecycle <checkpoint|sync|land|fanout|everything>]",
+    "       [--intent <name>] [--lifecycle <checkpoint|sync|land|fanout|everything|yolo>]",
     "       [--lease-ttl-ms <n>] [--json]",
     "",
     "Claims an Auto Git run and prints the selected workflow plus next action."
@@ -119,6 +119,10 @@ function nextSteps(snapshot, run) {
   }
   if (run?.lifecycle === "everything") {
     steps.push("Everything mode: manage commits by feature, verification, sync, merge, and release when the request clearly authorizes each step.");
+  }
+  if (run?.lifecycle === "yolo") {
+    steps.push("YOLO mode: use coordinated branch/worktree handling, commit by intent, verify, sync, land or create a PR handoff, and run release-preflight before any release action.");
+    steps.push("YOLO mode still stops for secrets, destructive cleanup, force-pushes, tag movement, failed verification, missing release metadata, unavailable auth, or ambiguous repo targets.");
   }
   if (snapshot.prReadiness && snapshot.prReadiness !== "none") {
     steps.push(`Current PR readiness: ${snapshot.prReadiness}.`);
