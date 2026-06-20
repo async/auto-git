@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 
 const SNAPSHOT_SCRIPT = new URL("./auto-git-snapshot.mjs", import.meta.url);
+const THREAD_ACTIONS = ["create", "send", "read", "handoff"];
+const RELEASE_CHECK_STATUSES = ["not-in-scope", "passed", "failed", "blocked", "deferred", "unknown"];
 
 function usage() {
   return [
@@ -112,6 +114,10 @@ function readJson(path, fallback) {
   }
 }
 
+function writeJson(path, value) {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
 function currentRun(snapshot, requestedId) {
   const runs = [
     ...(snapshot.occupancy?.activeRuns ?? []),
@@ -217,6 +223,102 @@ function requiresReturnToBase(run) {
 
 function git(cwd, args) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
+}
+
+function looksSecretish(value) {
+  return /(?:TOKEN|SECRET|PASSWORD|PASSWD|_authToken|ACCESS_KEY|PRIVATE_KEY)\s*[=:]/i.test(String(value ?? ""));
+}
+
+function looksTranscriptish(value) {
+  const text = String(value ?? "");
+  return /(?:BEGIN TRANSCRIPT|END TRANSCRIPT|<codex_delegation>|<conversation|raw transcript|full transcript|full prompt|assistant:|user:)/i.test(
+    text
+  );
+}
+
+function safeText(value, maxLength = 120) {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim().replace(/\s+/g, " ");
+  if (!text || looksSecretish(text) || looksTranscriptish(text)) return undefined;
+  return text.slice(0, maxLength);
+}
+
+function safeLabel(value, maxLength = 120) {
+  const text = safeText(value, maxLength);
+  if (!text) return undefined;
+  if (isAbsolute(text)) return basename(text).slice(0, maxLength);
+  return text;
+}
+
+function safePrUrl(value) {
+  const text = safeText(value, 300);
+  if (!text || /[?&](?:token|auth|secret|password|key)=/i.test(text)) return undefined;
+  try {
+    const parsed = new URL(text);
+    if (parsed.username || parsed.password) return undefined;
+  } catch {
+    return undefined;
+  }
+  return text;
+}
+
+function sanitizeThreadHandoff(handoff) {
+  if (!handoff || typeof handoff !== "object") return undefined;
+  const action = THREAD_ACTIONS.includes(handoff.action) ? handoff.action : undefined;
+  const status = safeText(handoff.status, 40);
+  const threadId = safeText(handoff.threadId, 120);
+  const prUrl = safePrUrl(handoff.pr?.url);
+  const prNumber = Number.isInteger(Number(handoff.pr?.number)) ? Number(handoff.pr.number) : undefined;
+  const releaseStatus = RELEASE_CHECK_STATUSES.includes(handoff.releaseCheck?.status)
+    ? handoff.releaseCheck.status
+    : undefined;
+  const worktree =
+    handoff.worktree && typeof handoff.worktree === "object"
+      ? {
+          class: safeText(handoff.worktree.class, 80),
+          basename: safeText(handoff.worktree.basename, 80)
+        }
+      : undefined;
+  const sanitized = {
+    schemaVersion: 1,
+    status: status ?? (threadId || action ? "recorded" : undefined),
+    action,
+    sourceSessionId: safeText(handoff.sourceSessionId, 120),
+    threadId,
+    target: safeLabel(handoff.target, 120),
+    repository: safeLabel(handoff.repository, 120),
+    package: safeLabel(handoff.package, 120),
+    branch: safeLabel(handoff.branch, 160),
+    worktree: worktree?.class || worktree?.basename ? worktree : undefined,
+    pr: prUrl || prNumber ? { url: prUrl, number: prNumber } : undefined,
+    releaseCheck: releaseStatus ? { status: releaseStatus } : undefined,
+    nextAdr: safeLabel(handoff.nextAdr, 120),
+    recordedAt: typeof handoff.recordedAt === "string" ? handoff.recordedAt : undefined
+  };
+  return Object.fromEntries(Object.entries(sanitized).filter(([, value]) => value !== undefined));
+}
+
+function rawLedgerPath(snapshot) {
+  return join(stateRoot(), "repos", snapshot.repo.hash, "ledger.json");
+}
+
+function readRawRun(snapshot, runId) {
+  const ledger = readJson(rawLedgerPath(snapshot), { runs: [] });
+  return Array.isArray(ledger.runs) ? ledger.runs.find((entry) => entry?.id === runId) : undefined;
+}
+
+function preserveThreadHandoff(snapshot, runId, handoff) {
+  const sanitized = sanitizeThreadHandoff(handoff);
+  if (!sanitized) return false;
+  const path = rawLedgerPath(snapshot);
+  const ledger = readJson(path, { runs: [] });
+  if (!Array.isArray(ledger.runs)) return false;
+  const index = ledger.runs.findIndex((entry) => entry?.id === runId);
+  if (index === -1) return false;
+  const runs = [...ledger.runs];
+  runs[index] = { ...runs[index], threadHandoff: sanitized };
+  writeJson(path, { ...ledger, runs });
+  return true;
 }
 
 function defaultBaseBranch(snapshot, run) {
@@ -610,6 +712,7 @@ function buildReceipt(options) {
   let snapshot = inspect(cwd, options.runId);
   let run = currentRun(snapshot, options.runId);
   const runId = options.runId ?? run?.id;
+  const rawThreadHandoff = runId ? readRawRun(snapshot, runId)?.threadHandoff : undefined;
   const mutations = [];
 
   if (options.recordPr) {
@@ -650,6 +753,10 @@ function buildReceipt(options) {
     mutations.push("complete-run");
     completed = true;
     snapshot = inspect(cwd, runId);
+    if (preserveThreadHandoff(snapshot, runId, rawThreadHandoff)) {
+      mutations.push("preserve-thread-handoff");
+      snapshot = inspect(cwd, runId);
+    }
   }
   const ledger = ledgerStatus(snapshot, runId);
 
