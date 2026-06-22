@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 - 2026-06-21
+
+- Add first-class `auto-git yolo` routing for coordinated branch, merge, release, return-to-base, and ledger completion flows.
+- Persist sanitized start decision receipts so later helpers can enforce the selected route.
+- Enforce finish-time completion gates for coordinated, release, follow-up, and local-review routes.
+- Record sanitized thread handoff metadata in the Auto Git ledger.
+- Add sanitized routing-audit fixture coverage for previously misrouted workflow classes.
+
 ## 0.3.0 - 2026-06-14
 
 - Move release, preview, snapshot, GitHub Pages, and API surface checks onto the generated `@async/pipeline` workflow.
